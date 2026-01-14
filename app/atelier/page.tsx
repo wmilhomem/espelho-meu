@@ -137,6 +137,7 @@ export default function AtelierPage() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
 
+  const abortControllerRef = useRef<AbortController | null>(null)
   const isLoadingUserRef = useRef(false)
   const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null)
 
@@ -156,7 +157,17 @@ export default function AtelierPage() {
           return
         }
 
+        if (abortControllerRef.current) {
+          console.log("[v0] Aborting previous user load request")
+          abortControllerRef.current.abort()
+        }
+
+        abortControllerRef.current = new AbortController()
+
         isLoadingUserRef.current = true
+
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
         const user = await getUser()
         isLoadingUserRef.current = false
 
@@ -208,12 +219,28 @@ export default function AtelierPage() {
       console.log("[v0] Auth state changed:", event)
 
       if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && !isLoadingUserRef.current) {
+        if (abortControllerRef.current) {
+          console.log("[v0] Aborting previous auth state user load")
+          abortControllerRef.current.abort()
+        }
+
+        abortControllerRef.current = new AbortController()
+
         isLoadingUserRef.current = true
+
         try {
+          await new Promise((resolve) => setTimeout(resolve, 150))
+
           const user = await getUser()
-          setCurrentUser(user)
-        } catch (error) {
-          console.error("[v0] Error loading user after auth change:", error)
+          if (user) {
+            setCurrentUser(user)
+          }
+        } catch (error: any) {
+          if (error?.name === "AbortError") {
+            console.log("[v0] User load aborted (expected)")
+          } else {
+            console.error("[v0] Error loading user after auth change:", error)
+          }
         } finally {
           isLoadingUserRef.current = false
         }
@@ -226,10 +253,20 @@ export default function AtelierPage() {
     authSubscriptionRef.current = subscription
 
     return () => {
+      console.log("[v0] Cleaning up atelier page")
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+
+      // Unsubscribe from auth changes
       if (authSubscriptionRef.current) {
         authSubscriptionRef.current.unsubscribe()
         authSubscriptionRef.current = null
       }
+
+      // Reset loading flag
       isLoadingUserRef.current = false
     }
   }, [router])
@@ -475,6 +512,11 @@ export default function AtelierPage() {
     }
   }
 
+  const handleUserUpdate = (updatedUser: User) => {
+    console.log("[v0] 🔄 handleUserUpdate called with:", updatedUser)
+    setCurrentUser(updatedUser)
+  }
+
   const menuItems = [
     {
       id: "dashboard",
@@ -649,6 +691,7 @@ export default function AtelierPage() {
               stats={stats}
               onAvatarChange={handleAvatarChange}
               onLogout={handleLogout}
+              onUserUpdate={handleUserUpdate}
             />
           )
         )

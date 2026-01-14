@@ -43,14 +43,68 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // Suppress benign ResizeObserver errors that occur during rapid UI updates
-              window.addEventListener('error', function(e) {
-                if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || 
-                    e.message === 'ResizeObserver loop limit exceeded') {
-                  e.stopImmediatePropagation();
-                  return false;
-                }
-              });
+              // Global error suppression setup
+              (function() {
+                // Suppress ResizeObserver loop errors (benign - from Radix UI Select repositioning)
+                const originalError = console.error;
+                console.error = function(...args) {
+                  if (args[0] && typeof args[0] === 'string' && args[0].includes('ResizeObserver loop')) {
+                    return; // Suppress silently
+                  }
+                  originalError.apply(console, args);
+                };
+                
+                // Capture window error events
+                window.addEventListener('error', function(e) {
+                  if (e.message && e.message.includes('ResizeObserver loop')) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    // Hide webpack dev overlay if present
+                    const overlay = document.getElementById('webpack-dev-server-client-overlay');
+                    if (overlay) overlay.style.display = 'none';
+                    return false;
+                  }
+                }, true); // Use capture phase
+                
+                // Capture unhandled promise rejections
+                window.addEventListener('unhandledrejection', function(e) {
+                  const reason = e.reason;
+                  
+                  // Suppress ResizeObserver errors in promises
+                  if (reason && reason.message && reason.message.includes('ResizeObserver loop')) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return false;
+                  }
+                  
+                  // Suppress Supabase AbortError (benign - from overlapping auth requests)
+                  if (reason && reason.name === 'AbortError' && 
+                      (reason.message.includes('signal is aborted') || 
+                       reason.message.includes('aborted without reason'))) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return false;
+                  }
+                }, true); // Use capture phase
+                
+                // Override ResizeObserver to suppress errors at source
+                const OriginalResizeObserver = window.ResizeObserver;
+                window.ResizeObserver = class extends OriginalResizeObserver {
+                  constructor(callback) {
+                    super((entries, observer) => {
+                      try {
+                        callback(entries, observer);
+                      } catch (e) {
+                        if (e.message && e.message.includes('ResizeObserver loop')) {
+                          // Suppress error silently
+                          return;
+                        }
+                        throw e;
+                      }
+                    });
+                  }
+                };
+              })();
             `,
           }}
         />

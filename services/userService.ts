@@ -71,13 +71,23 @@ export async function uploadBlobToStorage(
 
 export const getCurrentUserProfile = async (): Promise<User | null> => {
   try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+    let user = null
+    try {
+      const {
+        data: { user: authUser },
+        error: userError,
+      } = await supabase.auth.getUser()
 
-    if (userError || !user) {
-      return null
+      if (userError || !authUser) {
+        return null
+      }
+      user = authUser
+    } catch (authError: any) {
+      if (authError?.name === "AbortError") {
+        console.log("[v0] userService: getUser aborted (expected)")
+        return null
+      }
+      throw authError
     }
 
     let profile = null
@@ -87,7 +97,11 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       if (!error && data) {
         profile = data
       }
-    } catch (dbError) {
+    } catch (dbError: any) {
+      if (dbError?.name === "AbortError") {
+        console.log("[v0] userService: profile query aborted (expected)")
+        return null
+      }
       console.warn("Aviso: Falha ao buscar perfil no DB, usando dados da sessão.", dbError)
     }
 
@@ -142,7 +156,11 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
         kyc: prefs.kyc_data || undefined,
       },
     }
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      console.log("[v0] userService: Operation aborted")
+      return null
+    }
     console.error("Erro fatal na verificação de autenticação:", err)
     return null
   }

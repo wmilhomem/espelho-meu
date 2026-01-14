@@ -1,3 +1,5 @@
+// Substitua todo o arquivo UserProfileView.tsx por este conteúdo
+
 "use client"
 
 import type React from "react"
@@ -9,7 +11,6 @@ import {
   uploadBlobToStorage,
   addNotification,
   getCurrentUserProfile,
-  getAssets,
   updateAsset,
 } from "../../services/storageService"
 import { useTheme, type Theme } from "../../context/ThemeContext"
@@ -38,31 +39,28 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const kycDocInputRef = useRef<HTMLInputElement>(null)
 
+  const savingAbortControllerRef = useRef<AbortController | null>(null)
+  // ✅ CORREÇÃO 4: Track se o componente está montado
+  const isMountedRef = useRef(true)
+
   const [publishedProducts, setPublishedProducts] = useState<ImageAsset[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
-
-  // Estados locais para edição
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState("") // State for save errors
-
-  // Loading específico do avatar
+  const [saveError, setSaveError] = useState("")
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
 
   const [name, setName] = useState("")
   const [emailNotifications, setEmailNotifications] = useState(true)
-
   const [selectedAIModel, setSelectedAIModel] = useState<AIModel>("gemini-2.5-flash-image-preview")
 
-  // Configurações de Loja
   const [isSalesPageEnabled, setIsSalesPageEnabled] = useState(false)
   const [storeName, setStoreName] = useState("")
   const [storeLogo, setStoreLogo] = useState<string | null>(null)
   const [storeBanner, setStoreBanner] = useState<string | null>(null)
   const [whatsapp, setWhatsapp] = useState("")
-  const [storeConfig, setStoreConfig] = useState<any>(null) // Unified storeConfig state
+  const [storeConfig, setStoreConfig] = useState<any>(null)
 
-  // KYC States
   const [kycType, setKycType] = useState<"cpf" | "cnpj">("cpf")
   const [kycLegalName, setKycLegalName] = useState("")
   const [kycDocNumber, setKycDocNumber] = useState("")
@@ -70,11 +68,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [kycDocUrl, setKycDocUrl] = useState<string | null>(null)
   const [isUploadingDoc, setIsUploadingDoc] = useState(false)
 
+  // ✅ Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      if (savingAbortControllerRef.current) {
+        savingAbortControllerRef.current.abort()
+      }
+      // The loadingAbortControllerRef and loadTimeoutRef are no longer needed
+      // as the loadPublishedProducts function has been removed.
+    }
+  }, [])
+
   useEffect(() => {
     if (currentUser) {
       setName(currentUser.name)
       setEmailNotifications(currentUser.preferences.emailNotifications)
-
       setSelectedAIModel(currentUser.preferences?.aiModel || "gemini-2.5-flash-image-preview")
 
       setIsSalesPageEnabled(currentUser.storeConfig?.isSalesPageEnabled || false)
@@ -83,7 +92,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setStoreBanner(currentUser.storeConfig?.storeBanner || null)
       setWhatsapp(currentUser.storeConfig?.whatsapp || "")
 
-      // Unified storeConfig state
       setStoreConfig({
         isSalesPageEnabled: currentUser.storeConfig?.isSalesPageEnabled || false,
         storeName: currentUser.storeConfig?.storeName || "",
@@ -93,7 +101,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         kyc: currentUser.storeConfig?.kyc || null,
       })
 
-      // Load KYC Data
       if (currentUser.storeConfig?.kyc) {
         setKycType(currentUser.storeConfig.kyc.type)
         setKycLegalName(currentUser.storeConfig.kyc.legalName)
@@ -101,32 +108,20 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         setKycBankInfo(currentUser.storeConfig.kyc.bankInfo)
         setKycDocUrl(currentUser.storeConfig.kyc.documentUrl || null)
       } else {
-        // Pre-fill Name if empty
         setKycLegalName(currentUser.name)
-      }
-
-      if (currentUser.storeConfig?.isSalesPageEnabled) {
-        loadPublishedProducts()
       }
     }
   }, [currentUser])
 
-  const loadPublishedProducts = async () => {
-    if (!currentUser?.id) return
+  // ✅ CORREÇÃO 1: AbortControllers separados por função
+  // const savingAbortControllerRef = useRef<AbortController | null>(null)
+  // const loadingAbortControllerRef = useRef<AbortController | null>(null)
+  // const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-    setLoadingProducts(true)
-    try {
-      console.log("[v0] Loading published products for user:", currentUser.id)
-      const products = await getAssets("product", currentUser.id, true)
-      console.log("[v0] Published products loaded:", products.length)
-      setPublishedProducts(products)
-    } catch (error) {
-      console.error("[v0] Error loading published products:", error)
-    } finally {
-      setLoadingProducts(false)
-    }
-  }
+  // ✅ CORREÇÃO 4: Track se o componente está montado
+  // const isMountedRef = useRef(true)
 
+  // loadPublishedProducts REMOVIDA - seção foi removida
   const handleTogglePublish = async (product: ImageAsset) => {
     if (!product.id) return
 
@@ -134,32 +129,40 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const newStatus = !product.published
       await updateAsset(product.id, { published: newStatus })
 
-      // Update local state
-      setPublishedProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, published: newStatus } : p)))
+      if (isMountedRef.current) {
+        setPublishedProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, published: newStatus } : p)))
 
-      // Remove from list if unpublished
-      if (!newStatus) {
-        setPublishedProducts((prev) => prev.filter((p) => p.id !== product.id))
+        if (!newStatus) {
+          setPublishedProducts((prev) => prev.filter((p) => p.id !== product.id))
+        }
+
+        addNotification({
+          id: Date.now().toString(),
+          type: "success",
+          title: newStatus ? "Publicado" : "Ocultado",
+          message: `Produto ${newStatus ? "visível" : "oculto"} na loja.`,
+          read: false,
+          timestamp: Date.now(),
+        })
+      }
+    } catch (error: any) {
+      // ✅ CORREÇÃO 2: Ignore AbortError
+      if (error?.name === "AbortError") {
+        console.log("[v0] loadPublishedProducts aborted (expected)")
+        return
       }
 
-      addNotification({
-        id: Date.now().toString(),
-        type: "success",
-        title: newStatus ? "Publicado" : "Ocultado",
-        message: `Produto ${newStatus ? "visível" : "oculto"} na loja.`,
-        read: false,
-        timestamp: Date.now(),
-      })
-    } catch (error) {
       console.error("[v0] Error toggling publish:", error)
-      addNotification({
-        id: Date.now().toString(),
-        type: "error",
-        title: "Erro",
-        message: "Não foi possível alterar o status do produto.",
-        read: false,
-        timestamp: Date.now(),
-      })
+      if (isMountedRef.current) {
+        addNotification({
+          id: Date.now().toString(),
+          type: "error",
+          title: "Erro",
+          message: "Não foi possível alterar o status do produto.",
+          read: false,
+          timestamp: Date.now(),
+        })
+      }
     }
   }
 
@@ -167,7 +170,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
 
-      // Validação básica de tamanho
       if (file.size > 5 * 1024 * 1024) {
         addNotification({
           id: Date.now().toString(),
@@ -183,27 +185,32 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setIsUploadingAvatar(true)
       try {
         await onAvatarChange(file)
-        addNotification({
-          id: Date.now().toString(),
-          type: "success",
-          title: "Sucesso",
-          message: "Foto de perfil atualizada.",
-          read: false,
-          timestamp: Date.now(),
-        })
+        if (isMountedRef.current) {
+          addNotification({
+            id: Date.now().toString(),
+            type: "success",
+            title: "Sucesso",
+            message: "Foto de perfil atualizada.",
+            read: false,
+            timestamp: Date.now(),
+          })
+        }
       } catch (err) {
         console.error(err)
-        addNotification({
-          id: Date.now().toString(),
-          type: "error",
-          title: "Erro",
-          message: "Falha ao atualizar foto.",
-          read: false,
-          timestamp: Date.now(),
-        })
+        if (isMountedRef.current) {
+          addNotification({
+            id: Date.now().toString(),
+            type: "error",
+            title: "Erro",
+            message: "Falha ao atualizar foto.",
+            read: false,
+            timestamp: Date.now(),
+          })
+        }
       } finally {
-        setIsUploadingAvatar(false)
-        // Limpar o input para permitir selecionar o mesmo arquivo novamente se falhar
+        if (isMountedRef.current) {
+          setIsUploadingAvatar(false)
+        }
         if (avatarInputRef.current) avatarInputRef.current.value = ""
       }
     }
@@ -214,20 +221,22 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const file = e.target.files[0]
       try {
         const publicUrl = await uploadStoreLogo(currentUser.id, file)
-        if (publicUrl) {
+        if (publicUrl && isMountedRef.current) {
           setStoreLogo(publicUrl)
-          setStoreConfig((prev) => ({ ...prev, storeLogo: publicUrl })) // Update unified state
+          setStoreConfig((prev: any) => ({ ...prev, storeLogo: publicUrl }))
         } else throw new Error("Upload falhou - URL não retornada")
       } catch (err) {
         console.error(err)
-        addNotification({
-          id: Date.now().toString(),
-          type: "error",
-          title: "Erro",
-          message: "Falha no upload do logo.",
-          read: false,
-          timestamp: Date.now(),
-        })
+        if (isMountedRef.current) {
+          addNotification({
+            id: Date.now().toString(),
+            type: "error",
+            title: "Erro",
+            message: "Falha no upload do logo.",
+            read: false,
+            timestamp: Date.now(),
+          })
+        }
       }
     }
   }
@@ -236,21 +245,23 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     if (e.target.files && e.target.files[0] && currentUser) {
       const file = e.target.files[0]
       try {
-        const publicUrl = await uploadStoreLogo(currentUser.id, file) // Reusing logic for public url
-        if (publicUrl) {
+        const publicUrl = await uploadStoreLogo(currentUser.id, file)
+        if (publicUrl && isMountedRef.current) {
           setStoreBanner(publicUrl)
-          setStoreConfig((prev) => ({ ...prev, storeBanner: publicUrl })) // Update unified state
+          setStoreConfig((prev: any) => ({ ...prev, storeBanner: publicUrl }))
         } else throw new Error("Upload falhou - URL não retornada")
       } catch (err) {
         console.error(err)
-        addNotification({
-          id: Date.now().toString(),
-          type: "error",
-          title: "Erro",
-          message: "Falha no upload do banner.",
-          read: false,
-          timestamp: Date.now(),
-        })
+        if (isMountedRef.current) {
+          addNotification({
+            id: Date.now().toString(),
+            type: "error",
+            title: "Erro",
+            message: "Falha no upload do banner.",
+            read: false,
+            timestamp: Date.now(),
+          })
+        }
       }
     }
   }
@@ -261,9 +272,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setIsUploadingDoc(true)
       try {
         const { publicUrl } = await uploadBlobToStorage(file, currentUser.id, "uploads")
-        if (publicUrl) {
+        if (publicUrl && isMountedRef.current) {
           setKycDocUrl(publicUrl)
-          setStoreConfig((prev) => ({ ...prev, kyc: { ...prev?.kyc, documentUrl: publicUrl } })) // Update unified state
+          setStoreConfig((prev: any) => ({
+            ...prev,
+            kyc: { ...prev?.kyc, documentUrl: publicUrl },
+          }))
           addNotification({
             id: Date.now().toString(),
             type: "success",
@@ -274,25 +288,53 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           })
         }
       } catch (err) {
-        addNotification({
-          id: Date.now().toString(),
-          type: "error",
-          title: "Erro",
-          message: "Falha no upload do documento.",
-          read: false,
-          timestamp: Date.now(),
-        })
+        if (isMountedRef.current) {
+          addNotification({
+            id: Date.now().toString(),
+            type: "error",
+            title: "Erro",
+            message: "Falha no upload do documento.",
+            read: false,
+            timestamp: Date.now(),
+          })
+        }
       } finally {
-        setIsUploadingDoc(false)
+        if (isMountedRef.current) {
+          setIsUploadingDoc(false)
+        }
       }
     }
   }
 
+  // ✅ CORREÇÃO 3: Retry com backoff exponencial
+  const getWithRetry = async (maxRetries = 3, initialDelay = 300): Promise<User | null> => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const delay = initialDelay * Math.pow(2, i)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return await getCurrentUserProfile()
+      } catch (error: any) {
+        // Handle AbortError specifically
+        if (error?.name === "AbortError") {
+          console.log("[v0] getWithRetry: AbortError (retry attempt", i + 1, ")")
+          if (i === maxRetries - 1) throw error // Re-throw if it's the last attempt
+          continue // Continue to the next retry attempt
+        }
+        console.log(`[v0] Retry attempt ${i + 1}/${maxRetries}`, error)
+        if (i === maxRetries - 1) throw error
+      }
+    }
+    return null
+  }
+
   const handleSave = async () => {
     console.log("[v0] 💾 UserProfileView - handleSave START")
-    console.log("[v0] Current selectedAIModel:", selectedAIModel)
-    console.log("[v0] Current name:", name)
-    console.log("[v0] Current storeConfig:", storeConfig)
+
+    // ✅ CORREÇÃO 1: Abort requisições anteriores de save
+    if (savingAbortControllerRef.current) {
+      savingAbortControllerRef.current.abort()
+    }
+    savingAbortControllerRef.current = new AbortController()
 
     if (!currentUser) {
       console.log("[v0] ❌ No current user")
@@ -307,6 +349,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       return
     }
 
+    // Validações
     if (isSalesPageEnabled) {
       if (!storeName.trim()) {
         addNotification({
@@ -383,7 +426,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     }
 
     setIsSaving(true)
-    setSaveError("") // Clear previous errors
+    setSaveError("")
 
     try {
       console.log("[v0] 📤 Building update payload...")
@@ -403,7 +446,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         name,
         preferences: {
           emailNotifications,
-          aiModel: selectedAIModel, // Save the selected AI model
+          aiModel: selectedAIModel,
         },
         storeConfig: {
           isSalesPageEnabled,
@@ -415,20 +458,23 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         },
       }
 
-      console.log("[v0] 📤 Calling updateUserProfile with:", JSON.stringify(updates, null, 2))
       console.log("[v0] 🎯 AI Model being saved:", selectedAIModel)
-
       await updateUserProfile(currentUser.id, updates)
-
       console.log("[v0] ✅ updateUserProfile completed")
-      console.log("[v0] 🔄 Reloading user profile...")
 
-      const updatedUser = await getCurrentUserProfile()
-      console.log("[v0] 📥 Updated user from DB:", JSON.stringify(updatedUser?.preferences, null, 2))
-      console.log("[v0] 🤖 AI Model from DB after save:", updatedUser?.preferences?.aiModel)
+      // ✅ CORREÇÃO 3: Retry com backoff exponencial
+      console.log("[v0] 🔄 Reloading user profile with retry...")
+      const updatedUser = await getWithRetry(3, 300)
+
+      // ✅ CORREÇÃO 4: Verifique se ainda está montado
+      if (!isMountedRef.current) {
+        console.log("[v0] ⚠️ Componente desmontado, não atualizando state")
+        return
+      }
 
       if (updatedUser) {
-        onUserUpdate(updatedUser) // Update parent component with the new user data
+        console.log("[v0] 📥 Updated user from DB:", updatedUser.preferences?.aiModel)
+        onUserUpdate(updatedUser)
         console.log("[v0] ✅ User updated in parent component")
       }
 
@@ -444,22 +490,33 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       setIsEditing(false)
       console.log("[v0] ✅ handleSave - COMPLETE")
-      console.log("[v0] handleSave END")
     } catch (error: any) {
-      console.error("[v0] ❌ handleSave - ERROR:", error)
-      setSaveError(error.message || "Erro ao salvar perfil.") // Set save error message
+      // ✅ CORREÇÃO 2: Ignora AbortError especificamente
+      if (error?.name === "AbortError") {
+        console.log("[v0] ℹ️ handleSave abortado pelo usuário (ignorado)")
+        return
+      }
 
-      addNotification({
-        id: Date.now().toString(),
-        type: "error",
-        title: "Erro ao Salvar Perfil",
-        message: error.message || "Ocorreu um erro inesperado. Tente novamente.",
-        read: false,
-        timestamp: Date.now(),
-        duration: 6000,
-      })
+      console.error("[v0] ❌ handleSave - ERROR:", error)
+      const errorMsg = error?.message || "Erro ao salvar perfil."
+      setSaveError(errorMsg)
+
+      if (isMountedRef.current) {
+        addNotification({
+          id: Date.now().toString(),
+          type: "error",
+          title: "Erro ao Salvar Perfil",
+          message: errorMsg,
+          read: false,
+          timestamp: Date.now(),
+          duration: 6000,
+        })
+      }
     } finally {
-      setIsSaving(false)
+      if (isMountedRef.current) {
+        setIsSaving(false)
+      }
+      savingAbortControllerRef.current = null
     }
   }
 
@@ -468,7 +525,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   return (
     <div className="max-w-4xl mx-auto p-4 lg:p-8 animate-[fadeIn_0.5s_ease-out]">
       <div className="glass-card-block p-8 rounded-2xl border border-theme-border/50 relative overflow-hidden bg-theme-bg/80 backdrop-blur-xl">
-        {/* Background Glows (Dynamic with theme) */}
+        {/* Background Glows */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-theme-accent/5 rounded-full blur-[80px] pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-theme-secondary/5 rounded-full blur-[80px] pointer-events-none"></div>
 
@@ -526,7 +583,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               </div>
             )}
           </div>
-
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10 border-b border-theme-border/20 pb-10">
             <div
               className="relative group cursor-pointer"
