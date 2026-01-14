@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { getUser, signOut } from "@/services/userService"
@@ -137,6 +137,9 @@ export default function AtelierPage() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
 
+  const isLoadingUserRef = useRef(false)
+  const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null)
+
   useEffect(() => {
     const init = async () => {
       console.log("[v0] Initializing atelier page")
@@ -148,7 +151,15 @@ export default function AtelierPage() {
         const tryOnProductId = params.get("tryOnProduct")
         const tryOnStoreId = params.get("tryOnStore")
 
+        if (isLoadingUserRef.current) {
+          console.log("[v0] User load already in progress, skipping")
+          return
+        }
+
+        isLoadingUserRef.current = true
         const user = await getUser()
+        isLoadingUserRef.current = false
+
         console.log("[v0] User loaded:", user ? "Yes" : "No")
 
         if (!user) {
@@ -161,9 +172,7 @@ export default function AtelierPage() {
 
         if (tryOnProductId && tryOnStoreId) {
           console.log("[v0] User returned to try on product:", tryOnProductId)
-          // TODO: Load product and open studio wizard
           setCurrentView("studio")
-          // You may want to add logic here to pre-load the product
         } else if (storeParam) {
           setViewingStoreId(storeParam)
           router.push(`/loja/${storeParam}`)
@@ -181,6 +190,7 @@ export default function AtelierPage() {
         console.log("[v0] Initialization complete, loading finished")
       } catch (error) {
         console.error("[v0] Init error:", error)
+        isLoadingUserRef.current = false
       } finally {
         setIsGlobalLoading(false)
       }
@@ -188,22 +198,40 @@ export default function AtelierPage() {
 
     init()
 
+    if (authSubscriptionRef.current) {
+      authSubscriptionRef.current.unsubscribe()
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("[v0] Auth state changed:", event)
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        const user = await getUser()
-        setCurrentUser(user)
-        // Only navigate to dashboard if user is explicitly not on a specific view
-        // This prevents the profile view from being reset when auth state changes
+
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && !isLoadingUserRef.current) {
+        isLoadingUserRef.current = true
+        try {
+          const user = await getUser()
+          setCurrentUser(user)
+        } catch (error) {
+          console.error("[v0] Error loading user after auth change:", error)
+        } finally {
+          isLoadingUserRef.current = false
+        }
       } else if (event === "SIGNED_OUT") {
         setCurrentUser(null)
         router.push("/")
       }
     })
 
-    return () => subscription.unsubscribe()
+    authSubscriptionRef.current = subscription
+
+    return () => {
+      if (authSubscriptionRef.current) {
+        authSubscriptionRef.current.unsubscribe()
+        authSubscriptionRef.current = null
+      }
+      isLoadingUserRef.current = false
+    }
   }, [router])
 
   const handleNavigate = (view: WorkflowStep) => {
@@ -459,7 +487,7 @@ export default function AtelierPage() {
     {
       id: "gallery",
       label: "HISTÓRICO",
-      icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+      icon: "M4 16l4.586-4.586a2.032 2.032 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 00-4-5.659V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     },
     { id: "my-orders", label: "MEUS PEDIDOS", icon: "M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" },
     {

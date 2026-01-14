@@ -307,20 +307,19 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       return
     }
 
-    if (isSalesPageEnabled && !storeName.trim()) {
-      addNotification({
-        id: Date.now().toString(),
-        type: "error",
-        title: "Nome da Loja Obrigatório",
-        message: "Preencha o nome da loja para ativar a Página Pública.",
-        read: false,
-        timestamp: Date.now(),
-      })
-      return
-    }
-
     if (isSalesPageEnabled) {
-      // Validar campos obrigatórios
+      if (!storeName.trim()) {
+        addNotification({
+          id: Date.now().toString(),
+          type: "error",
+          title: "Nome da Loja Obrigatório",
+          message: "Preencha o nome da loja para ativar a Página Pública.",
+          read: false,
+          timestamp: Date.now(),
+        })
+        return
+      }
+
       if (!kycLegalName || !kycLegalName.trim()) {
         addNotification({
           id: Date.now().toString(),
@@ -357,7 +356,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         return
       }
 
-      // Validar documento anexado no bucket
       if (!kycDocUrl || !kycDocUrl.trim()) {
         addNotification({
           id: Date.now().toString(),
@@ -371,7 +369,6 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         return
       }
 
-      // Validar que a URL do documento aponta para o bucket correto
       if (!kycDocUrl.includes("supabase.co/storage") && !kycDocUrl.startsWith("http")) {
         addNotification({
           id: Date.now().toString(),
@@ -389,14 +386,18 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     setSaveError("") // Clear previous errors
 
     try {
-      const kycData: KYCData = {
-        type: kycType,
-        legalName: kycLegalName,
-        documentNumber: kycDocNumber,
-        bankInfo: kycBankInfo,
-        documentUrl: kycDocUrl || undefined,
-        status: currentUser.storeConfig?.kyc?.status || "pending",
-      }
+      console.log("[v0] 📤 Building update payload...")
+
+      const kycData: KYCData | null = isSalesPageEnabled
+        ? {
+            type: kycType,
+            legalName: kycLegalName,
+            documentNumber: kycDocNumber,
+            bankInfo: kycBankInfo,
+            documentUrl: kycDocUrl || undefined,
+            status: currentUser.storeConfig?.kyc?.status || "pending",
+          }
+        : null
 
       const updates: Partial<User> = {
         name,
@@ -405,7 +406,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           aiModel: selectedAIModel, // Save the selected AI model
         },
         storeConfig: {
-          ...storeConfig, // Merge existing and updated store configs
+          isSalesPageEnabled,
+          storeName,
+          storeLogo,
+          storeBanner,
+          whatsapp,
           kyc: kycData,
         },
       }
@@ -430,8 +435,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       addNotification({
         id: Date.now().toString(),
         type: "success",
-        title: "Perfil Salvo com Sucesso!",
-        message: `Modelo de IA: ${getAIModelConfig(selectedAIModel).displayName}. As próximas transformações usarão este modelo.`,
+        title: "Perfil Atualizado com Sucesso",
+        message: `Modelo de IA: ${getAIModelConfig(selectedAIModel).displayName}. Suas próximas transformações usarão este modelo.`,
         read: false,
         timestamp: Date.now(),
         duration: 5000,
@@ -443,6 +448,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     } catch (error: any) {
       console.error("[v0] ❌ handleSave - ERROR:", error)
       setSaveError(error.message || "Erro ao salvar perfil.") // Set save error message
+
       addNotification({
         id: Date.now().toString(),
         type: "error",
@@ -488,15 +494,33 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="px-5 py-2 rounded-lg text-gray-400 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-lg text-gray-400 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="gold-gradient-bg px-6 py-2 rounded-lg text-black font-bold uppercase tracking-widest shadow-lg hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2"
+                  className="gold-gradient-bg px-6 py-2 rounded-lg text-black font-bold uppercase tracking-widest shadow-lg hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  {isSaving && (
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
                   {isSaving ? "Salvando..." : "Salvar"}
                 </button>
               </div>
