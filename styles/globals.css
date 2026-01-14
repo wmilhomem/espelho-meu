@@ -1,0 +1,418 @@
+/* Added required Tailwind CSS import at the top */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Importar Fontes */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap");
+
+/* Importar Uppy CSS */
+@import url("https://releases.transloadit.com/uppy/v3.23.0/uppy.min.css");
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ============================================
+   TAILWIND LAYERS
+   ============================================ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  /* VARIÁVEIS DE TEMA */
+  :root {
+    /* LUXURY THEME (DEFAULT) */
+    --color-bg: 5 1 10; /* #05010a */
+    --color-surface: 15 5 24; /* #0f0518 */
+    --color-card: 255 255 255;
+    --color-border: 255 215 0; /* Goldish */
+
+    --color-text: 255 255 255;
+    --color-text-muted: 156 163 175;
+
+    --color-accent: 255 215 0; /* Gold */
+    --color-secondary: 176 38 255; /* Neon Purple */
+
+    --grad-start: #bf953f;
+    --grad-mid: #fcf6ba;
+    --grad-end: #aa771c;
+  }
+
+  [data-theme="dark"] {
+    --color-bg: 15 23 42;
+    --color-surface: 30 41 59;
+    --color-card: 255 255 255;
+    --color-border: 148 163 184;
+    --color-text: 248 250 252;
+    --color-text-muted: 148 163 184;
+    --color-accent: 56 189 248;
+    --color-secondary: 99 102 241;
+    --grad-start: #0ea5e9;
+    --grad-mid: #7dd3fc;
+    --grad-end: #0284c7;
+  }
+
+  /* LIGHT MODE - RETRO / CLEAN / WINDOWS 95 STYLE */
+  [data-theme="light"] {
+    --color-bg: 245 245 245; /* Light Gray Background */
+    --color-surface: 255 255 255; /* White Surface */
+    --color-card: 255 255 255;
+    --color-border: 0 0 0; /* Solid Black Border */
+
+    --color-text: 0 0 0; /* Black Text */
+    --color-text-muted: 80 80 80; /* Dark Gray */
+
+    --color-accent: 0 0 128; /* Navy Blue */
+    --color-secondary: 0 128 128; /* Teal */
+
+    /* Flat Gradients */
+    --grad-start: #e0e0e0;
+    --grad-mid: #f0f0f0;
+    --grad-end: #cccccc;
+  }
+
+  /* ESTILOS BASE */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(180deg, #0f0518 0%, #05010a 100%);
+    color: rgb(var(--color-text));
+    min-height: 100vh;
+  }
+
+  /* Luxury Mode (padrão) - aplicar fundo roxo profundo */
+  body:not([data-theme="light"]):not([data-theme="dark"]) {
+    background: linear-gradient(180deg, #0f0518 0%, #05010a 100%);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  /* ============================================
+     GRADIENTES
+     ============================================ */
+  .gold-gradient-bg {
+    background-image: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-mid) 50%, var(--grad-end) 100%);
+  }
+
+  .gold-gradient-text {
+    background-image: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-mid) 50%, var(--grad-end) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Standard Glass Card */
+  .glass-card-block {
+    background: rgba(15, 5, 24, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 215, 0, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(176, 38, 255, 0.1);
+  }
+
+  /* Luxury Mode - Forçar cores corretas */
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-black,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-black\/20,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-black\/30,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-black\/40,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-black\/50 {
+    background-color: rgba(15, 5, 24, 0.8) !important;
+  }
+
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-gray-900,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .bg-gray-800 {
+    background-color: #0f0518 !important;
+  }
+
+  /* Bordas e divisores no Luxury Mode */
+  body:not([data-theme="light"]):not([data-theme="dark"]) .border,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .border-t,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .border-b,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .border-l,
+  body:not([data-theme="light"]):not([data-theme="dark"]) .border-r {
+    border-color: rgba(255, 215, 0, 0.2) !important;
+  }
+
+  body:not([data-theme="light"]):not([data-theme="dark"]) .divide-y > * {
+    border-color: rgba(255, 215, 0, 0.1) !important;
+  }
+
+  /* ============================================
+     SCROLLBARS CUSTOMIZADOS
+     ============================================ */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(var(--color-text), 0.05);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(var(--color-text), 0.2);
+    border-radius: 10px;
+  }
+
+  /* ============================================
+     LIGHT MODE OVERRIDES
+     ============================================ */
+  [data-theme="light"] body {
+    background-color: rgb(var(--color-bg)) !important;
+    color: rgb(var(--color-text)) !important;
+  }
+
+  /* Light Mode Button Override */
+  [data-theme="light"] .gold-gradient-bg {
+    background-image: none !important;
+    background-color: #e0e0e0 !important;
+    border: 2px solid #000 !important;
+    color: #000 !important;
+    box-shadow: 4px 4px 0px #000 !important;
+    border-radius: 0px !important;
+  }
+
+  [data-theme="light"] .gold-gradient-bg:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #000 !important;
+  }
+
+  [data-theme="light"] .gold-gradient-text {
+    background: none !important;
+    -webkit-text-fill-color: #000 !important;
+    color: #000 !important;
+    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Force Boxes to look like Retro Windows */
+  [data-theme="light"] .glass-card-block,
+  [data-theme="light"] aside,
+  [data-theme="light"] .bg-black\/20,
+  [data-theme="light"] .bg-black\/30 {
+    background-color: #ffffff !important;
+    backdrop-filter: none !important;
+    border: 2px solid #000 !important;
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 0px !important;
+  }
+
+  /* Force Inputs to be high contrast */
+  [data-theme="light"] input,
+  [data-theme="light"] textarea,
+  [data-theme="light"] select {
+    background-color: #fff !important;
+    border: 2px solid #000 !important;
+    color: #000 !important;
+    border-radius: 0px !important;
+    box-shadow: inset 4px 4px 0px #eee !important;
+  }
+
+  [data-theme="light"] input::placeholder {
+    color: #888 !important;
+  }
+
+  /* Text Color Inversion for Light Mode */
+  [data-theme="light"] .text-white {
+    color: #000 !important;
+  }
+
+  [data-theme="light"] .text-gray-300,
+  [data-theme="light"] .text-gray-400,
+  [data-theme="light"] .text-gray-500 {
+    color: #333 !important;
+  }
+
+  [data-theme="light"] .text-theme-textMuted {
+    color: #555 !important;
+  }
+
+  /* Remove Rounded Corners globally in Light Mode for retro feel */
+  [data-theme="light"] .rounded-xl,
+  [data-theme="light"] .rounded-2xl,
+  [data-theme="light"] .rounded-3xl,
+  [data-theme="light"] .rounded-lg,
+  [data-theme="light"] .rounded-full {
+    border-radius: 0px !important;
+  }
+
+  /* Except Avatars/Small Buttons where specifically needed */
+  [data-theme="light"] .rounded-full.w-10,
+  [data-theme="light"] .rounded-full.w-8 {
+    border-radius: 50% !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* Sidebar & Modals specific overrides */
+  [data-theme="light"] .fixed.inset-0 {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+    backdrop-filter: blur(4px) !important;
+  }
+
+  /* Light Mode Scrollbars */
+  [data-theme="light"] .custom-scrollbar::-webkit-scrollbar-track {
+    background: #eee;
+    border-left: 1px solid #000;
+  }
+
+  [data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #000;
+    border-radius: 0;
+  }
+}
+
+/* ============================================
+   ANIMAÇÕES (fora do @layer)
+   ============================================ */
+@keyframes shine {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-shine {
+  animation: shine 4s linear infinite;
+  background-size: 200% auto;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
