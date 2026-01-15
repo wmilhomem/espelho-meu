@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { getUser, signOut } from "@/services/userService"
 import { uploadBlobToStorage, createJob } from "@/services/storageService"
 import { useAppData } from "@/hooks/use-app-data"
@@ -213,6 +213,7 @@ export default function AtelierPage() {
       authSubscriptionRef.current.unsubscribe()
     }
 
+    const supabase = getSupabaseBrowserClient()
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {

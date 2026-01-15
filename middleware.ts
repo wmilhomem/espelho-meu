@@ -24,13 +24,22 @@ export async function middleware(request: NextRequest) {
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
       },
     },
+    auth: {
+      storageKey: "espelho-meu-auth",
+      flowType: "pkce",
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
   })
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
 
   const { pathname } = request.nextUrl
+
+  console.log("[v0][Middleware] Path:", pathname, "Has session:", !!session)
 
   const protectedRoutes = ["/atelier"]
   const publicRoutes = ["/", "/login", "/lojas", "/loja"]
@@ -38,14 +47,16 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
   const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 
-  if (isProtectedRoute && !user) {
+  if (isProtectedRoute && !session) {
+    console.log("[v0][Middleware] Blocking protected route, redirecting to login")
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = "/login"
     redirectUrl.searchParams.set("redirectTo", pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (pathname === "/login" && user) {
+  if (pathname === "/login" && session) {
+    console.log("[v0][Middleware] User logged in, redirecting from login")
     const redirectUrl = request.nextUrl.clone()
     const redirectTo = request.nextUrl.searchParams.get("redirectTo")
     redirectUrl.pathname = redirectTo || "/atelier"

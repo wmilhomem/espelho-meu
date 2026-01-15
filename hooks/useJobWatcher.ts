@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { TryOnJob, JobStatus } from "@/types"
-import { supabase } from "@/lib/supabase"
-
-type WatchMode = "polling" | "realtime"
+import type { TryOnJob, JobStatus, WatchMode } from "@/types"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 interface UseJobWatcherOptions {
   enabled: boolean
@@ -46,6 +44,7 @@ export function useJobWatcher({
   const startTimeRef = useRef<number>(Date.now())
   const realtimeChannelRef = useRef<any>(null)
   const prevStatusRef = useRef<JobStatus | null>(null)
+  const supabase = getSupabaseBrowserClient()
 
   const fetchJobStatus = useCallback(async () => {
     if (!jobId) return null

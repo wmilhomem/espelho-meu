@@ -1,5 +1,5 @@
 import type { HistoryItem, ImageAsset, TryOnJob, User, Order, CartItem } from "../types"
-import { supabase } from "../lib/supabase"
+import { getSupabaseBrowserClient } from "../lib/supabase"
 import { addNotification as userAddNotification } from "./userService"
 import { AI_MODELS } from "@/constants/ai-models"
 
@@ -8,6 +8,7 @@ const ASSETS_BUCKET = "espelho-assets"
 const NOTIF_KEY = "espelho_meu_notifications_v1"
 
 async function ensureAuthenticatedOrAbort() {
+  const supabase = getSupabaseBrowserClient()
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -58,6 +59,7 @@ export const toggleJobVisibility = async (jobId: string, isPublic: boolean): Pro
 
 export const completeJob = async (jobId: string, resultBase64: string): Promise<TryOnJob | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const session = await ensureAuthenticatedOrAbort()
     const blob = await base64ToBlob(resultBase64, "image/jpeg")
     const { publicUrl, path } = await uploadBlobToStorage(blob, session.user.id, "results")
@@ -89,6 +91,7 @@ export const completeJob = async (jobId: string, resultBase64: string): Promise<
 }
 
 export const failJob = async (jobId: string): Promise<void> => {
+  const supabase = getSupabaseBrowserClient()
   await supabase.from("jobs").update({ status: "failed" }).eq("id", jobId)
 }
 
@@ -121,6 +124,7 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
     console.log("[v0] Inserting job into database...")
     console.log("[v0] Insert payload:", newJob)
 
+    const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase.from("jobs").insert([newJob]).select().single()
 
     if (error) {
@@ -195,6 +199,7 @@ export async function uploadBlobToStorage(
       contentType,
     })
 
+    const supabase = getSupabaseBrowserClient()
     const uploadPromise = supabase.storage.from(ASSETS_BUCKET).upload(filePath, fileOrBlob, {
       cacheControl: "3600",
       upsert: false,
@@ -235,14 +240,18 @@ export const getAssets = async (type?: string, userId?: string, onlyPublished?: 
   if (!targetUserId) {
     const {
       data: { user },
-    } = await supabase.auth.getUser()
+    } = await getSupabaseBrowserClient().auth.getUser()
     if (!user) return []
     targetUserId = user.id
   }
 
   console.log("[v0] getAssets: Fetching assets for user:", targetUserId, "type:", type, "onlyPublished:", onlyPublished)
 
-  let query = supabase.from("assets").select("*").eq("user_id", targetUserId).order("created_at", { ascending: false })
+  let query = getSupabaseBrowserClient()
+    .from("assets")
+    .select("*")
+    .eq("user_id", targetUserId)
+    .order("created_at", { ascending: false })
 
   if (type) {
     query = query.eq("type", type)
@@ -286,7 +295,7 @@ export const updateAsset = async (assetId: string, updates: Partial<ImageAsset>)
     const payload: any = {}
     if (updates.published !== undefined) payload.published = updates.published
     if (updates.price !== undefined) payload.price = updates.price
-    await supabase.from("assets").update(payload).eq("id", assetId)
+    await getSupabaseBrowserClient().from("assets").update(payload).eq("id", assetId)
   } catch (e: any) {
     throw handleSupabaseError(e, "Atualizar Asset")
   }
@@ -296,7 +305,7 @@ export const getUserOrders = async (): Promise<Order[]> => {
   try {
     const session = await ensureAuthenticatedOrAbort()
 
-    const { data: orders, error } = await supabase
+    const { data: orders, error } = await getSupabaseBrowserClient()
       .from("orders")
       .select(`
                 *, 
@@ -312,7 +321,7 @@ export const getUserOrders = async (): Promise<Order[]> => {
 
     const storeMap: Record<string, string> = {}
     if (storeIds.length > 0) {
-      const { data: stores, error: storeError } = await supabase
+      const { data: stores, error: storeError } = await getSupabaseBrowserClient()
         .from("profiles")
         .select("id, name, preferences")
         .in("id", storeIds)
@@ -343,7 +352,7 @@ export const createOrder = async (
 ): Promise<Order | null> => {
   try {
     const session = await ensureAuthenticatedOrAbort()
-    const { data: orderData, error: orderError } = await supabase
+    const { data: orderData, error: orderError } = await getSupabaseBrowserClient()
       .from("orders")
       .insert([
         {
@@ -367,7 +376,7 @@ export const createOrder = async (
       product_name: item.name,
       product_image: item.preview,
     }))
-    await supabase.from("order_items").insert(orderItemsPayload)
+    await getSupabaseBrowserClient().from("order_items").insert(orderItemsPayload)
     return orderData
   } catch (e: any) {
     throw handleSupabaseError(e, "Criar Pedido")
@@ -377,7 +386,7 @@ export const createOrder = async (
 export const getStoreOrders = async (): Promise<Order[]> => {
   try {
     const session = await ensureAuthenticatedOrAbort()
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseBrowserClient()
       .from("orders")
       .select(`*, items:order_items(*)`)
       .eq("store_id", session.user.id)
@@ -405,7 +414,7 @@ export const updateUserProfile = async (
   }
 
   // 1. Buscar dados atuais para garantir integridade
-  const { data: current, error: fetchError } = await supabase
+  const { data: current, error: fetchError } = await getSupabaseBrowserClient()
     .from("profiles")
     .select("preferences, name")
     .eq("id", userId)
@@ -441,7 +450,7 @@ export const updateUserProfile = async (
   console.log("[storageService] Final preferences to save:", newPrefs)
 
   // 4. Update único e atômico
-  const { error: updateError } = await supabase
+  const { error: updateError } = await getSupabaseBrowserClient()
     .from("profiles")
     .update({
       name: updates.name || current.name,
@@ -470,7 +479,10 @@ export const uploadUserAvatar = async (userId: string, fileOrBase64: File | stri
     const { publicUrl } = await uploadBlobToStorage(blob, userId, "avatars")
 
     // Atualiza a tabela profiles com a nova URL
-    const { error } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId)
+    const { error } = await getSupabaseBrowserClient()
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", userId)
 
     if (error) {
       console.error("Erro ao atualizar profile DB com avatar:", error)
@@ -494,13 +506,20 @@ export const uploadStoreLogo = async (userId: string, file: File): Promise<strin
 }
 
 export const signInWithEmail = async (email: string, password: string) =>
-  supabase.auth.signInWithPassword({ email, password })
+  getSupabaseBrowserClient().auth.signInWithPassword({ email, password })
 export const signInWithGoogle = async () =>
-  supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })
+  getSupabaseBrowserClient().auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin },
+  })
 export const signUpWithEmail = async (email: string, password: string, name: string) => {
-  const authResponse = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+  const authResponse = await getSupabaseBrowserClient().auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: name } },
+  })
   if (authResponse.data?.user) {
-    supabase
+    getSupabaseBrowserClient()
       .from("profiles")
       .insert([{ id: authResponse.data.user.id, name, plan: "free" }])
       .then(() => {})
@@ -510,16 +529,20 @@ export const signUpWithEmail = async (email: string, password: string, name: str
 
 export const getStoreBannersFromStorage = async (storeId: string): Promise<string[]> => {
   try {
-    const { data, error } = await supabase.storage.from(ASSETS_BUCKET).list(`${storeId}/banners`, {
-      limit: 10,
-      offset: 0,
-      sortBy: { column: "created_at", order: "desc" },
-    })
+    const { data, error } = await getSupabaseBrowserClient()
+      .storage.from(ASSETS_BUCKET)
+      .list(`${storeId}/banners`, {
+        limit: 10,
+        offset: 0,
+        sortBy: { column: "created_at", order: "desc" },
+      })
 
     if (error || !data || data.length === 0) return []
 
     const urls = data.map((file) => {
-      const { data: publicData } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(`${storeId}/banners/${file.name}`)
+      const { data: publicData } = getSupabaseBrowserClient()
+        .storage.from(ASSETS_BUCKET)
+        .getPublicUrl(`${storeId}/banners/${file.name}`)
       return publicData.publicUrl
     })
 
@@ -538,7 +561,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser()
+    } = await getSupabaseBrowserClient().auth.getUser()
 
     if (userError || !user) {
       // Se realmente não tiver usuário, retorna null (não logado)
@@ -549,7 +572,11 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
 
     // 2. Tentar buscar perfil no banco de dados com tratamento de erro isolado
     try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
+      const { data, error } = await getSupabaseBrowserClient()
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle()
       if (!error && data) {
         profile = data
       }
@@ -573,7 +600,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     // 4. Se perfil existe, processa os dados
     let avatarUrl = profile.avatar_url
     if (avatarUrl && !avatarUrl.startsWith("http")) {
-      const { data } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(avatarUrl)
+      const { data } = getSupabaseBrowserClient().storage.from(ASSETS_BUCKET).getPublicUrl(avatarUrl)
       avatarUrl = data.publicUrl
     }
 
@@ -608,7 +635,7 @@ export const getStoreProfile = async (
   storeId: string,
 ): Promise<{ name: string; logo: string; banner: string; whatsapp: string; socialLinks?: any } | null> => {
   try {
-    const { data: profile } = await supabase
+    const { data: profile } = await getSupabaseBrowserClient()
       .from("profiles")
       .select("name, avatar_url, preferences")
       .eq("id", storeId)
@@ -632,10 +659,10 @@ export const getStoreProfile = async (
 export const getJobs = async (limit = 50): Promise<TryOnJob[]> => {
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await getSupabaseBrowserClient().auth.getUser()
   if (!user) return []
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseBrowserClient()
     .from("jobs")
     .select(`
       *, 
@@ -678,14 +705,22 @@ export const createAsset = async (assetData: Omit<ImageAsset, "id" | "createdAt"
 export const getStatsCount = async () => {
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await getSupabaseBrowserClient().auth.getUser()
   if (!user) return { products: 0, models: 0, jobs: 0, processing: 0 }
 
   const [products, models, jobs, processing] = await Promise.all([
-    supabase.from("assets").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "product"),
-    supabase.from("assets").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "model"),
-    supabase.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-    supabase
+    getSupabaseBrowserClient()
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("type", "product"),
+    getSupabaseBrowserClient()
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("type", "model"),
+    getSupabaseBrowserClient().from("jobs").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+    getSupabaseBrowserClient()
       .from("jobs")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
@@ -710,7 +745,7 @@ export const saveAsset = async (userId: string, asset: ImageAsset, base64Data: s
       publicUrl = up.publicUrl
       storagePath = up.path
     }
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseBrowserClient()
       .from("assets")
       .insert([
         {
@@ -741,26 +776,32 @@ export const deleteAssetWithStrategy = async (
   strategy: "keep-history" | "delete-all",
 ): Promise<void> => {
   if (strategy === "delete-all") {
-    await supabase.from("jobs").delete().or(`product_id.eq.${assetId},model_id.eq.${assetId}`)
+    await getSupabaseBrowserClient().from("jobs").delete().or(`product_id.eq.${assetId},model_id.eq.${assetId}`)
   }
 
-  const { error } = await supabase.from("assets").delete().eq("id", assetId)
+  const { error } = await getSupabaseBrowserClient().from("assets").delete().eq("id", assetId)
   if (error) throw error
 }
 
 export const deleteJobFull = async (jobId: string): Promise<void> => {
-  const { error } = await supabase.from("jobs").delete().eq("id", jobId)
+  const { error } = await getSupabaseBrowserClient().from("jobs").delete().eq("id", jobId)
   if (error) throw error
 }
 
 export const toggleAssetFavorite = async (assetId: string, currentFavorite: boolean): Promise<void> => {
-  const { error } = await supabase.from("assets").update({ is_favorite: !currentFavorite }).eq("id", assetId)
+  const { error } = await getSupabaseBrowserClient()
+    .from("assets")
+    .update({ is_favorite: !currentFavorite })
+    .eq("id", assetId)
 
   if (error) throw error
 }
 
 export const toggleJobFavorite = async (jobId: string, currentFavorite: boolean): Promise<void> => {
-  const { error } = await supabase.from("jobs").update({ is_favorite: !currentFavorite }).eq("id", jobId)
+  const { error } = await getSupabaseBrowserClient()
+    .from("jobs")
+    .update({ is_favorite: !currentFavorite })
+    .eq("id", jobId)
 
   if (error) throw error
 }
@@ -768,7 +809,10 @@ export const toggleJobFavorite = async (jobId: string, currentFavorite: boolean)
 export const getStoreNamesByIds = async (userIds: string[]): Promise<Record<string, string>> => {
   if (userIds.length === 0) return {}
 
-  const { data, error } = await supabase.from("profiles").select("id, name, preferences").in("id", userIds)
+  const { data, error } = await getSupabaseBrowserClient()
+    .from("profiles")
+    .select("id, name, preferences")
+    .in("id", userIds)
 
   if (error) throw error
 
@@ -785,7 +829,7 @@ export const getStoreNamesByIds = async (userIds: string[]): Promise<Record<stri
 
 export const getAllStores = async () => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseBrowserClient()
       .from("profiles")
       .select("id, name, avatar_url, preferences")
       .not("preferences", "is", null)
@@ -832,7 +876,7 @@ export const handleSupabaseError = (error: any, operation: string): any => {
 
 export const getJobById = async (jobId: string): Promise<TryOnJob | null> => {
   try {
-    const { data, error } = await supabase.from("jobs").select("*").eq("id", jobId).single()
+    const { data, error } = await getSupabaseBrowserClient().from("jobs").select("*").eq("id", jobId).single()
 
     if (error) throw error
 

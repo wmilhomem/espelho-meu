@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase"
+import { getSupabaseBrowserClient } from "../lib/supabase"
 import type { User, ImageAsset, TryOnJob, Notification, ImageAssetType, Order, CartItem } from "../types"
 import { AI_MODELS } from "../constants/ai-models"
 
@@ -31,6 +31,7 @@ const getStoragePathFromUrl = (url: string): string | null => {
 }
 
 async function ensureAuthenticatedOrAbort() {
+  const supabase = getSupabaseBrowserClient()
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -45,6 +46,7 @@ export async function uploadBlobToStorage(
 ): Promise<{ publicUrl: string; path: string }> {
   try {
     await ensureAuthenticatedOrAbort()
+    const supabase = getSupabaseBrowserClient()
 
     const timestamp = Date.now()
     const fileNameRaw = (fileOrBlob as File).name || "image.jpg"
@@ -71,6 +73,7 @@ export async function uploadBlobToStorage(
 
 export const getCurrentUserProfile = async (): Promise<User | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     let user = null
     try {
       const {
@@ -177,6 +180,7 @@ export const updateUserProfile = async (
     console.log("[v0] userId:", userId)
     console.log("[v0] updates:", JSON.stringify(updates, null, 2))
 
+    const supabase = getSupabaseBrowserClient()
     const { data: currentProfile } = await supabase
       .from("profiles")
       .select("preferences, ai_model")
@@ -260,11 +264,18 @@ export const updateUserProfile = async (
   }
 }
 
-export const signInWithEmail = async (email: string, password: string) =>
-  supabase.auth.signInWithPassword({ email, password })
-export const signInWithGoogle = async () =>
-  supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })
+export const signInWithEmail = async (email: string, password: string) => {
+  const supabase = getSupabaseBrowserClient()
+  return supabase.auth.signInWithPassword({ email, password })
+}
+
+export const signInWithGoogle = async () => {
+  const supabase = getSupabaseBrowserClient()
+  return supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })
+}
+
 export const signUpWithEmail = async (email: string, password: string, name: string) => {
+  const supabase = getSupabaseBrowserClient()
   const authResponse = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
   if (authResponse.data?.user) {
     supabase
@@ -274,12 +285,20 @@ export const signUpWithEmail = async (email: string, password: string, name: str
   }
   return authResponse
 }
-export const sendPasswordResetEmail = async (email: string) =>
-  supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
-export const signOut = async () => supabase.auth.signOut()
+
+export const sendPasswordResetEmail = async (email: string) => {
+  const supabase = getSupabaseBrowserClient()
+  return supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+}
+
+export const signOut = async () => {
+  const supabase = getSupabaseBrowserClient()
+  return supabase.auth.signOut()
+}
 
 export const getAssets = async (type?: ImageAssetType, userId?: string): Promise<ImageAsset[]> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     let query = supabase.from("assets").select("*").order("created_at", { ascending: false })
     if (userId) query = query.eq("user_id", userId)
     else {
@@ -316,6 +335,7 @@ export const getAssets = async (type?: ImageAssetType, userId?: string): Promise
 
 export const saveAsset = async (userId: string, asset: ImageAsset, base64Data: string) => {
   try {
+    const supabase = getSupabaseBrowserClient()
     let publicUrl = asset.preview
     let storagePath = ""
     if (base64Data) {
@@ -352,6 +372,7 @@ export const saveAsset = async (userId: string, asset: ImageAsset, base64Data: s
 
 export const getJobs = async (limit?: number): Promise<TryOnJob[]> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -399,6 +420,7 @@ export const getJobs = async (limit?: number): Promise<TryOnJob[]> => {
 
 export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const session = await ensureAuthenticatedOrAbort()
     const newJob = {
       user_id: session.user.id,
@@ -431,6 +453,7 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
 
 export const completeJob = async (jobId: string, resultBase64: string): Promise<TryOnJob | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const session = await ensureAuthenticatedOrAbort()
     const blob = await base64ToBlob(resultBase64, "image/jpeg")
     const { publicUrl, path } = await uploadBlobToStorage(blob, session.user.id, "results")
@@ -463,6 +486,7 @@ export const completeJob = async (jobId: string, resultBase64: string): Promise<
 
 export const getAllStores = async (): Promise<any[]> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase
       .from("profiles")
       .select("id, name, avatar_url, preferences")
@@ -509,6 +533,7 @@ export const createOrder = async (
   total: number,
 ): Promise<Order | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const session = await ensureAuthenticatedOrAbort()
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
@@ -543,6 +568,7 @@ export const createOrder = async (
 
 export const getUserOrders = async (): Promise<Order[]> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const session = await ensureAuthenticatedOrAbort()
 
     const { data: orders, error } = await supabase
@@ -577,6 +603,7 @@ export const addNotification = (notif: Notification): Notification[] => {
 
 export const getStoreProfile = async (storeId: string): Promise<any | null> => {
   try {
+    const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase
       .from("profiles")
       .select("id, name, avatar_url, preferences")
