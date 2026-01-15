@@ -1,5 +1,8 @@
-import type { HistoryItem, ImageAsset, TryOnJob, User, Order, CartItem } from "../types"
-import { getSupabaseBrowserClient } from "../lib/supabase"
+import type { HistoryItem, ImageAsset, TryOnJob, User, Order, CartItem } from "@/types"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { ensureAuthenticatedOrAbort } from "@/lib/auth-helpers"
+import { handleSupabaseError } from "@/lib/error-handler"
+import { logger } from "@/lib/logger"
 import { addNotification as userAddNotification } from "./userService"
 import { AI_MODELS } from "@/constants/ai-models"
 
@@ -7,22 +10,13 @@ const STORAGE_KEY = "espelho_meu_history"
 const ASSETS_BUCKET = "espelho-assets"
 const NOTIF_KEY = "espelho_meu_notifications_v1"
 
-async function ensureAuthenticatedOrAbort() {
-  const supabase = getSupabaseBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (session?.user) return session
-  throw handleSupabaseError({ message: "Usuário não autenticado" }, "Autenticação")
-}
-
 export const saveJobToHistory = (item: HistoryItem): void => {
   try {
     const history = getHistory()
     history.unshift(item)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
   } catch (error) {
-    console.error("Erro ao salvar histórico:", error)
+    logger.error("Erro ao salvar histórico:", error)
   }
 }
 
@@ -31,7 +25,7 @@ export const getHistory = (): HistoryItem[] => {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored ? JSON.parse(stored) : []
   } catch (error) {
-    console.error("Erro ao carregar histórico:", error)
+    logger.error("Erro ao carregar histórico:", error)
     return []
   }
 }
@@ -42,7 +36,7 @@ export const deleteHistoryItem = (itemId: string): void => {
     const filtered = history.filter((item) => item.id !== itemId)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
   } catch (error) {
-    console.error("Erro ao deletar item:", error)
+    logger.error("Erro ao deletar item:", error)
   }
 }
 
@@ -52,7 +46,7 @@ export const toggleJobVisibility = async (jobId: string, isPublic: boolean): Pro
     const updated = history.map((item) => (item.id === jobId ? { ...item, isPublic } : item))
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
   } catch (error) {
-    console.error("Erro ao atualizar visibilidade:", error)
+    logger.error("Erro ao atualizar visibilidade:", error)
     throw error
   }
 }
@@ -85,7 +79,7 @@ export const completeJob = async (jobId: string, resultBase64: string): Promise<
       isFavorite: data.is_favorite,
       isPublic: data.is_public,
     }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Completar Job")
   }
 }
@@ -97,8 +91,8 @@ export const failJob = async (jobId: string): Promise<void> => {
 
 export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
   try {
-    console.log("[v0] 🔵 createJob - START")
-    console.log("[v0] Job payload:", {
+    logger.debug("createJob - START")
+    logger.debug("Job payload:", {
       userId: job.userId,
       productId: job.productId,
       modelId: job.modelId,
@@ -106,9 +100,9 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
       status: job.status,
     })
 
-    console.log("[v0] Checking authentication...")
+    logger.debug("Checking authentication...")
     const session = await ensureAuthenticatedOrAbort()
-    console.log("[v0] ✅ Authentication OK, user:", session.user.id)
+    logger.debug("✅ Authentication OK, user:", session.user.id)
 
     const newJob = {
       user_id: session.user.id,
@@ -121,19 +115,19 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
       is_public: false,
     }
 
-    console.log("[v0] Inserting job into database...")
-    console.log("[v0] Insert payload:", newJob)
+    logger.debug("Inserting job into database...")
+    logger.debug("Insert payload:", newJob)
 
     const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase.from("jobs").insert([newJob]).select().single()
 
     if (error) {
-      console.error("[v0] ❌ Database insert error:", error)
+      logger.error("❌ Database insert error:", error)
       throw error
     }
 
-    console.log("[v0] ✅ Job inserted successfully, ID:", data.id)
-    console.log("[v0] Job data from DB:", data)
+    logger.debug("✅ Job inserted successfully, ID:", data.id)
+    logger.debug("Job data from DB:", data)
 
     const result = {
       id: data.id,
@@ -148,10 +142,10 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
       isPublic: data.is_public,
     }
 
-    console.log("[v0] 🔵 createJob - END, returning:", result)
+    logger.debug("createJob - END, returning:", result)
     return result
-  } catch (e: any) {
-    console.error("[v0] ❌ createJob - ERROR:", e)
+  } catch (e) {
+    logger.error("❌ createJob - ERROR:", e)
     throw handleSupabaseError(e, "Criar Job")
   }
 }
@@ -168,7 +162,7 @@ export const updateJobStatus = (
     )
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
   } catch (error) {
-    console.error("Erro ao atualizar status:", error)
+    logger.error("Erro ao atualizar status:", error)
   }
 }
 
@@ -178,14 +172,14 @@ export async function uploadBlobToStorage(
   folder: "uploads" | "results" | "avatars" | "products" | "models" | "banners",
 ): Promise<{ publicUrl: string; path: string }> {
   try {
-    console.log("[v0] uploadBlobToStorage - Iniciando upload", {
+    logger.debug("uploadBlobToStorage - Iniciando upload", {
       folder,
       size: fileOrBlob.size,
       type: fileOrBlob.type,
     })
 
     await ensureAuthenticatedOrAbort()
-    console.log("[v0] uploadBlobToStorage - Autenticação verificada")
+    logger.debug("uploadBlobToStorage - Autenticação verificada")
 
     const timestamp = Date.now()
     // Verifica se é File para pegar o nome, senão usa o padrão
@@ -194,7 +188,7 @@ export async function uploadBlobToStorage(
     const filePath = `${userId}/${folder}/${timestamp}_${safeName}`
     const contentType = fileOrBlob.type || "image/jpeg" // Determina o tipo explicitamente
 
-    console.log("[v0] uploadBlobToStorage - Iniciando upload para Supabase Storage", {
+    logger.debug("uploadBlobToStorage - Iniciando upload para Supabase Storage", {
       filePath,
       contentType,
     })
@@ -214,20 +208,20 @@ export async function uploadBlobToStorage(
     const { data, error } = (await Promise.race([uploadPromise, timeoutPromise])) as any
 
     if (error) {
-      console.error("[v0] uploadBlobToStorage - Erro no upload:", error)
+      logger.error("uploadBlobToStorage - Erro no upload:", error)
       throw error
     }
 
-    console.log("[v0] uploadBlobToStorage - Upload concluído com sucesso:", data.path)
+    logger.debug("uploadBlobToStorage - Upload concluído com sucesso:", data.path)
 
     // Obter URL Pública
     const { data: publicData } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(data.path)
 
-    console.log("[v0] uploadBlobToStorage - URL pública gerada:", publicData.publicUrl)
+    logger.debug("uploadBlobToStorage - URL pública gerada:", publicData.publicUrl)
 
     return { publicUrl: publicData.publicUrl, path: data.path }
-  } catch (error: any) {
-    console.error("[v0] uploadBlobToStorage - ERRO COMPLETO:", error)
+  } catch (error) {
+    logger.error("uploadBlobToStorage - ERRO COMPLETO:", error)
     throw handleSupabaseError(error, "Upload de Arquivo")
   }
 }
@@ -245,7 +239,7 @@ export const getAssets = async (type?: string, userId?: string, onlyPublished?: 
     targetUserId = user.id
   }
 
-  console.log("[v0] getAssets: Fetching assets for user:", targetUserId, "type:", type, "onlyPublished:", onlyPublished)
+  logger.debug("getAssets: Fetching assets for user:", targetUserId, "type:", type, "onlyPublished:", onlyPublished)
 
   let query = getSupabaseBrowserClient()
     .from("assets")
@@ -264,11 +258,11 @@ export const getAssets = async (type?: string, userId?: string, onlyPublished?: 
   const { data, error } = await query
 
   if (error) {
-    console.error("[v0] getAssets: Error fetching assets:", error)
+    logger.error("getAssets: Error fetching assets:", error)
     throw error
   }
 
-  console.log("[v0] getAssets: Found", data?.length || 0, "assets")
+  logger.debug("getAssets: Found", data?.length || 0, "assets")
 
   return (
     data?.map((item: any) => ({
@@ -296,7 +290,7 @@ export const updateAsset = async (assetId: string, updates: Partial<ImageAsset>)
     if (updates.published !== undefined) payload.published = updates.published
     if (updates.price !== undefined) payload.price = updates.price
     await getSupabaseBrowserClient().from("assets").update(payload).eq("id", assetId)
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Atualizar Asset")
   }
 }
@@ -338,8 +332,8 @@ export const getUserOrders = async (): Promise<Order[]> => {
       ...order,
       store_name: storeMap[order.store_id] || "Loja",
     }))
-  } catch (e: any) {
-    console.error("Erro ao buscar meus pedidos:", e.message || JSON.stringify(e))
+  } catch (e) {
+    logger.error("Erro ao buscar meus pedidos:", e.message || JSON.stringify(e))
     return []
   }
 }
@@ -378,7 +372,7 @@ export const createOrder = async (
     }))
     await getSupabaseBrowserClient().from("order_items").insert(orderItemsPayload)
     return orderData
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Criar Pedido")
   }
 }
@@ -393,7 +387,7 @@ export const getStoreOrders = async (): Promise<Order[]> => {
       .order("created_at", { ascending: false })
     if (error) throw error
     return data || []
-  } catch (e: any) {
+  } catch (e) {
     return []
   }
 }
@@ -402,15 +396,15 @@ export const updateUserProfile = async (
   userId: string,
   updates: Partial<User> & { storeConfig?: any },
 ): Promise<void> => {
-  console.log("[storageService] 🔄 Updating user profile:", userId)
-  console.log("[storageService] Updates received:", JSON.stringify(updates, null, 2))
+  logger.debug("[storageService] 🔄 Updating user profile:", userId)
+  logger.debug("[storageService] Updates received:", JSON.stringify(updates, null, 2))
 
   if (updates.preferences?.aiModel) {
     const validModels = Object.values(AI_MODELS)
     if (!validModels.includes(updates.preferences.aiModel as any)) {
       throw new Error(`Modelo de IA inválido: ${updates.preferences.aiModel}`)
     }
-    console.log("[storageService] ✅ AI model validated:", updates.preferences.aiModel)
+    logger.debug("[storageService] ✅ AI model validated:", updates.preferences.aiModel)
   }
 
   // 1. Buscar dados atuais para garantir integridade
@@ -421,11 +415,11 @@ export const updateUserProfile = async (
     .single()
 
   if (fetchError) {
-    console.error("[storageService] ❌ Error fetching current profile:", fetchError)
+    logger.error("[storageService] ❌ Error fetching current profile:", fetchError)
     throw fetchError
   }
 
-  console.log("[storageService] Current preferences:", current?.preferences)
+  logger.debug("[storageService] Current preferences:", current?.preferences)
 
   // 2. Preparar as novas preferências mantendo o que já existe
   const oldPrefs = current?.preferences || {}
@@ -433,7 +427,7 @@ export const updateUserProfile = async (
 
   if (updates.preferences) {
     Object.assign(newPrefs, updates.preferences)
-    console.log("[storageService] Merged preferences:", newPrefs)
+    logger.debug("[storageService] Merged preferences:", newPrefs)
   }
 
   // 3. Mapear storeConfig para dentro do JSON preferences
@@ -447,7 +441,7 @@ export const updateUserProfile = async (
     if (sc.kyc !== undefined) newPrefs.kyc_data = sc.kyc
   }
 
-  console.log("[storageService] Final preferences to save:", newPrefs)
+  logger.debug("[storageService] Final preferences to save:", newPrefs)
 
   // 4. Update único e atômico
   const { error: updateError } = await getSupabaseBrowserClient()
@@ -459,11 +453,11 @@ export const updateUserProfile = async (
     .eq("id", userId)
 
   if (updateError) {
-    console.error("[storageService] ❌ Error updating profile:", updateError)
+    logger.error("[storageService] ❌ Error updating profile:", updateError)
     throw updateError
   }
 
-  console.log("[storageService] ✅ Profile updated successfully")
+  logger.debug("[storageService] ✅ Profile updated successfully")
 }
 
 export const uploadUserAvatar = async (userId: string, fileOrBase64: File | string): Promise<string | null> => {
@@ -485,13 +479,13 @@ export const uploadUserAvatar = async (userId: string, fileOrBase64: File | stri
       .eq("id", userId)
 
     if (error) {
-      console.error("Erro ao atualizar profile DB com avatar:", error)
+      logger.error("Erro ao atualizar profile DB com avatar:", error)
       throw error
     }
 
     return publicUrl
   } catch (e) {
-    console.error("Falha no uploadUserAvatar:", e)
+    logger.error("Falha no uploadUserAvatar:", e)
     return null
   }
 }
@@ -548,7 +542,7 @@ export const getStoreBannersFromStorage = async (storeId: string): Promise<strin
 
     return urls
   } catch (error) {
-    console.error("Error fetching banners from storage:", error)
+    logger.error("Error fetching banners from storage:", error)
     return []
   }
 }
@@ -581,7 +575,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
         profile = data
       }
     } catch (dbError) {
-      console.warn("Aviso: Falha ao buscar perfil no DB, usando dados da sessão.", dbError)
+      logger.warn("Aviso: Falha ao buscar perfil no DB, usando dados da sessão.", dbError)
     }
 
     // 3. Fallback Robusto: Se não achou perfil no DB ou deu erro, cria objeto User a partir da sessão
@@ -626,7 +620,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     }
   } catch (err) {
     // Erro crítico na sessão de auth
-    console.error("Erro fatal na verificação de autenticação:", err)
+    logger.error("Erro fatal na verificação de autenticação:", err)
     return null
   }
 }
@@ -766,7 +760,7 @@ export const saveAsset = async (userId: string, asset: ImageAsset, base64Data: s
       .single()
     if (error) throw error
     return { ...asset, id: data.id, preview: data.public_url }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Salvar Asset")
   }
 }
@@ -835,7 +829,7 @@ export const getAllStores = async () => {
       .not("preferences", "is", null)
 
     if (error) {
-      console.error("[v0] Profiles table error:", error.message)
+      logger.error("[v0] Profiles table error:", error.message)
       return []
     }
 
@@ -858,7 +852,7 @@ export const getAllStores = async () => {
 
     return activeStores || []
   } catch (error) {
-    console.error("[v0] Database error in getAllStores:", error)
+    logger.error("[v0] Database error in getAllStores:", error)
     return []
   }
 }
@@ -867,11 +861,6 @@ export const base64ToBlob = async (base64: string, contentType: string): Promise
   const response = await fetch(base64)
   const blob = await response.blob()
   return blob
-}
-
-export const handleSupabaseError = (error: any, operation: string): any => {
-  console.error(`Erro ao ${operation}:`, error.message || JSON.stringify(error))
-  return error
 }
 
 export const getJobById = async (jobId: string): Promise<TryOnJob | null> => {
@@ -899,7 +888,7 @@ export const getJobById = async (jobId: string): Promise<TryOnJob | null> => {
       started_at: data.started_at,
       completed_at: data.completed_at,
     }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Get Job By ID")
   }
 }

@@ -1,13 +1,11 @@
-import { getSupabaseBrowserClient } from "../lib/supabase"
-import type { User, ImageAsset, TryOnJob, Notification, ImageAssetType, Order, CartItem } from "../types"
-import { AI_MODELS } from "../constants/ai-models"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { ensureAuthenticatedOrAbort } from "@/lib/auth-helpers"
+import { handleSupabaseError, isAbortError } from "@/lib/error-handler"
+import { logger } from "@/lib/logger"
+import type { User, ImageAsset, TryOnJob, Notification, ImageAssetType, Order, CartItem } from "@/types"
+import { AI_MODELS } from "@/constants/ai-models"
 
 const ASSETS_BUCKET = "espelho-assets"
-
-const handleSupabaseError = (error: any, context: string) => {
-  console.error(`[${context}]`, error)
-  return new Error(error.message || "Erro desconhecido")
-}
 
 const base64ToBlob = async (base64: string, mimeType: string): Promise<Blob> => {
   const base64Clean = base64.replace(/^data:image\/\w+;base64,/, "")
@@ -28,15 +26,6 @@ const getStoragePathFromUrl = (url: string): string | null => {
   } catch {
     return null
   }
-}
-
-async function ensureAuthenticatedOrAbort() {
-  const supabase = getSupabaseBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (session?.user) return session
-  throw handleSupabaseError({ message: "Usuário não autenticado" }, "Autenticação")
 }
 
 export async function uploadBlobToStorage(
@@ -65,8 +54,8 @@ export async function uploadBlobToStorage(
     const { data: publicData } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(data.path)
 
     return { publicUrl: publicData.publicUrl, path: data.path }
-  } catch (error: any) {
-    console.error("Upload Failed:", error)
+  } catch (error) {
+    logger.error("Upload Failed:", error)
     throw handleSupabaseError(error, "Upload de Arquivo")
   }
 }
@@ -75,6 +64,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
   try {
     const supabase = getSupabaseBrowserClient()
     let user = null
+
     try {
       const {
         data: { user: authUser },
@@ -85,9 +75,9 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
         return null
       }
       user = authUser
-    } catch (authError: any) {
-      if (authError?.name === "AbortError") {
-        console.log("[v0] userService: getUser aborted (expected)")
+    } catch (authError) {
+      if (isAbortError(authError)) {
+        logger.debug("getUser aborted (expected)")
         return null
       }
       throw authError
@@ -100,12 +90,12 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       if (!error && data) {
         profile = data
       }
-    } catch (dbError: any) {
-      if (dbError?.name === "AbortError") {
-        console.log("[v0] userService: profile query aborted (expected)")
+    } catch (dbError) {
+      if (isAbortError(dbError)) {
+        logger.debug("profile query aborted (expected)")
         return null
       }
-      console.warn("Aviso: Falha ao buscar perfil no DB, usando dados da sessão.", dbError)
+      logger.warn("Falha ao buscar perfil no DB, usando dados da sessão.", dbError)
     }
 
     if (!profile) {
@@ -130,13 +120,13 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     const aiModelFromColumn = profile.ai_model
     const aiModelFromPrefs = prefs.aiModel
 
-    console.log("[v0] userService: Loading user profile, banner data:", prefs.store_banner)
-    console.log("[v0] userService: ai_model from column:", aiModelFromColumn)
-    console.log("[v0] userService: aiModel from preferences:", aiModelFromPrefs)
+    logger.log("[v0] userService: Loading user profile, banner data:", prefs.store_banner)
+    logger.log("[v0] userService: ai_model from column:", aiModelFromColumn)
+    logger.log("[v0] userService: aiModel from preferences:", aiModelFromPrefs)
 
     // Priority: column value > preferences value > default
     const finalAIModel = aiModelFromColumn || aiModelFromPrefs || "gemini-2.5-flash-image-preview"
-    console.log("[v0] userService: Final AI Model:", finalAIModel)
+    logger.log("[v0] userService: Final AI Model:", finalAIModel)
 
     return {
       id: profile.id,
@@ -159,12 +149,12 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
         kyc: prefs.kyc_data || undefined,
       },
     }
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      console.log("[v0] userService: Operation aborted")
+  } catch (err) {
+    if (isAbortError(err)) {
+      logger.debug("Operation aborted")
       return null
     }
-    console.error("Erro fatal na verificação de autenticação:", err)
+    logger.error("Erro fatal na verificação de autenticação:", err)
     return null
   }
 }
@@ -176,9 +166,7 @@ export const updateUserProfile = async (
   updates: Partial<User> & { storeConfig?: any },
 ): Promise<void> => {
   try {
-    console.log("[v0] 📝 updateUserProfile - START")
-    console.log("[v0] userId:", userId)
-    console.log("[v0] updates:", JSON.stringify(updates, null, 2))
+    logger.debug("updateUserProfile - START", { userId, updates })
 
     const supabase = getSupabaseBrowserClient()
     const { data: currentProfile } = await supabase
@@ -188,42 +176,42 @@ export const updateUserProfile = async (
       .single()
     const currentPrefs = currentProfile?.preferences || {}
 
-    console.log("[v0] Current preferences from DB:", JSON.stringify(currentPrefs, null, 2))
-    console.log("[v0] Current ai_model column from DB:", currentProfile?.ai_model)
+    logger.debug("Current preferences from DB:", currentPrefs)
+    logger.debug("Current ai_model column from DB:", currentProfile?.ai_model)
 
     const payload: any = {}
     if (updates.name) payload.name = updates.name
 
     let newPrefs = { ...currentPrefs }
     if (updates.preferences) {
-      console.log("[v0] Merging new preferences:", JSON.stringify(updates.preferences, null, 2))
+      logger.debug("Merging new preferences:", updates.preferences)
       newPrefs = { ...newPrefs, ...updates.preferences }
 
       if (updates.preferences.aiModel) {
         const aiModel = updates.preferences.aiModel as string
-        console.log("[v0] 🤖 AI Model being saved:", aiModel)
+        logger.log("[v0] 🤖 AI Model being saved:", aiModel)
 
         const validModels = Object.values(AI_MODELS)
-        console.log("[v0] Valid AI models:", validModels)
+        logger.log("[v0] Valid AI models:", validModels)
 
         if (!validModels.includes(aiModel as any)) {
-          console.error("[v0] ❌ Invalid AI model:", aiModel)
-          console.error("[v0] Valid models:", validModels)
+          logger.error("[v0] ❌ Invalid AI model:", aiModel)
+          logger.error("[v0] Valid models:", validModels)
           throw new Error(`Modelo de IA inválido: ${aiModel}. Modelos válidos: ${validModels.join(", ")}`)
         }
 
-        console.log("[v0] ✅ AI Model validated successfully")
+        logger.log("[v0] ✅ AI Model validated successfully")
 
         newPrefs.aiModel = aiModel
         payload.ai_model = aiModel
 
-        console.log("[v0] 💾 Saving aiModel to preferences.aiModel:", aiModel)
-        console.log("[v0] 💾 Saving aiModel to ai_model column:", aiModel)
+        logger.log("[v0] 💾 Saving aiModel to preferences.aiModel:", aiModel)
+        logger.log("[v0] 💾 Saving aiModel to ai_model column:", aiModel)
       }
     }
 
     if (updates.storeConfig) {
-      console.log("[v0] Merging store config:", JSON.stringify(updates.storeConfig, null, 2))
+      logger.debug("Merging store config:", updates.storeConfig)
       if (updates.storeConfig.isSalesPageEnabled !== undefined)
         newPrefs.is_sales_enabled = updates.storeConfig.isSalesPageEnabled
       if (updates.storeConfig.storeName !== undefined) newPrefs.store_name = updates.storeConfig.storeName
@@ -237,18 +225,18 @@ export const updateUserProfile = async (
 
     payload.preferences = newPrefs
 
-    console.log("[v0] 💾 Final payload to DB:", JSON.stringify(payload, null, 2))
-    console.log("[v0] 📊 Final payload.preferences.aiModel:", payload.preferences?.aiModel)
-    console.log("[v0] 📊 Final payload.ai_model (column):", payload.ai_model)
+    logger.debug("Final payload to DB:", payload)
+    logger.debug("Final payload.preferences.aiModel:", payload.preferences?.aiModel)
+    logger.debug("Final payload.ai_model (column):", payload.ai_model)
 
     const { error } = await supabase.from("profiles").update(payload).eq("id", userId)
 
     if (error) {
-      console.error("[v0] ❌ Database update error:", error)
+      logger.error("[v0] ❌ Database update error:", error)
       throw error
     }
 
-    console.log("[v0] ✅ updateUserProfile - SUCCESS")
+    logger.info("updateUserProfile - SUCCESS")
 
     const { data: verifyData } = await supabase
       .from("profiles")
@@ -256,10 +244,10 @@ export const updateUserProfile = async (
       .eq("id", userId)
       .single()
 
-    console.log("[v0] 🔍 Verification - ai_model column after save:", verifyData?.ai_model)
-    console.log("[v0] 🔍 Verification - preferences.aiModel after save:", verifyData?.preferences?.aiModel)
-  } catch (e: any) {
-    console.error("[v0] ❌ updateUserProfile - FAILED:", e)
+    logger.debug("Verification - ai_model column after save:", verifyData?.ai_model)
+    logger.debug("Verification - preferences.aiModel after save:", verifyData?.preferences?.aiModel)
+  } catch (e) {
+    logger.error("updateUserProfile - FAILED:", e)
     throw handleSupabaseError(e, "Atualizar Perfil")
   }
 }
@@ -328,7 +316,7 @@ export const getAssets = async (type?: ImageAssetType, userId?: string): Promise
       price: item.price,
       published: item.published,
     }))
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Buscar Assets")
   }
 }
@@ -365,7 +353,7 @@ export const saveAsset = async (userId: string, asset: ImageAsset, base64Data: s
       .single()
     if (error) throw error
     return { ...asset, id: data.id, preview: data.public_url }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Salvar Asset")
   }
 }
@@ -413,7 +401,7 @@ export const getJobs = async (limit?: number): Promise<TryOnJob[]> => {
       productName: job.product?.name,
     }))
   } catch (err) {
-    console.error("Erro ao buscar jobs:", err)
+    logger.error("Erro ao buscar jobs:", err)
     return []
   }
 }
@@ -446,7 +434,7 @@ export const createJob = async (job: TryOnJob): Promise<TryOnJob | null> => {
       isFavorite: data.is_favorite,
       isPublic: data.is_public,
     }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Criar Job")
   }
 }
@@ -479,7 +467,7 @@ export const completeJob = async (jobId: string, resultBase64: string): Promise<
       isFavorite: data.is_favorite,
       isPublic: data.is_public,
     }
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Completar Job")
   }
 }
@@ -520,8 +508,8 @@ export const getAllStores = async (): Promise<any[]> => {
       })
 
     return activeStores
-  } catch (e: any) {
-    console.error("Erro ao buscar lojas:", e)
+  } catch (e) {
+    logger.error("Erro ao buscar lojas:", e)
     return []
   }
 }
@@ -561,7 +549,7 @@ export const createOrder = async (
     }))
     await supabase.from("order_items").insert(orderItemsPayload)
     return orderData
-  } catch (e: any) {
+  } catch (e) {
     throw handleSupabaseError(e, "Criar Pedido")
   }
 }
@@ -579,7 +567,7 @@ export const getUserOrders = async (): Promise<Order[]> => {
 
     if (error) throw error
     return orders || []
-  } catch (e: any) {
+  } catch (e) {
     return []
   }
 }
@@ -611,21 +599,21 @@ export const getStoreProfile = async (storeId: string): Promise<any | null> => {
       .maybeSingle()
 
     if (error || !data) {
-      console.error("[v0] getStoreProfile error:", error)
+      logger.error("[v0] getStoreProfile error:", error)
       return null
     }
 
     const prefs = data.preferences || {}
 
     const bannerData = prefs.store_banner || ""
-    console.log("[v0] getStoreProfile: Raw banner from DB:", bannerData)
+    logger.log("[v0] getStoreProfile: Raw banner from DB:", bannerData)
 
     return {
       id: data.id,
       name: prefs.store_name || data.name || "Loja",
       logo: prefs.store_logo || data.avatar_url || "",
       banner: bannerData, // Return raw banner data for parsing in component
-      whatsapp: prefs.whatsapp || "",
+      whatsapp: prefs.whatsapp,
       socialLinks: prefs.social_links || {},
       storeConfig: {
         storeBanner: bannerData,
@@ -638,7 +626,7 @@ export const getStoreProfile = async (storeId: string): Promise<any | null> => {
       preferences: prefs,
     }
   } catch (err) {
-    console.error("[v0] getStoreProfile fatal error:", err)
+    logger.error("[v0] getStoreProfile fatal error:", err)
     return null
   }
 }
