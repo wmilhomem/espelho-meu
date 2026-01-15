@@ -93,12 +93,3 @@ export function createAuthClient() {
 // ============================================
 
 export { supabaseUrl, supabaseServiceKey, supabaseAnonKey }
-
-// ✅ Helpers
-export function isAdminConfigured(): boolean {
-  return !!supabaseServiceKey
-}
-
-export function isAuthConfigured(): boolean {
-  return !!supabaseAnonKey
-}
