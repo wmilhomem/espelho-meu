@@ -1,4 +1,4 @@
-import { createAdminClient, createAuthClient } from "@/lib/supabase-server"
+import { adminClient, authClient } from "@/lib/supabase-server"
 const BUCKET_NAME = "espelho-assets"
 
 export async function POST(request: Request) {
@@ -14,11 +14,10 @@ export async function POST(request: Request) {
 
     const token = authHeader.split(" ")[1]
 
-    const supabaseAuth = createAuthClient()
     const {
       data: { user },
       error: authError,
-    } = await supabaseAuth.auth.getUser(token)
+    } = await authClient.auth.getUser(token)
 
     if (authError || !user) {
       console.warn(`[API/upload-blob][${requestId}] ⛔ Unauthorized: Invalid Token`, authError)
@@ -40,15 +39,13 @@ export async function POST(request: Request) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 })
     }
 
-    const supabaseAdmin = createAdminClient()
-
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
     const timestamp = Date.now()
     const filePath = `${userId}/${folder}/${timestamp}_${safeName}`
 
     console.log(`[API/upload-blob][${requestId}] 📤 Uploading to path: ${filePath}`)
 
-    const { data, error } = await supabaseAdmin.storage.from(BUCKET_NAME).upload(filePath, file, {
+    const { data, error } = await adminClient.storage.from(BUCKET_NAME).upload(filePath, file, {
       contentType: file.type || "image/jpeg",
       upsert: false,
     })
@@ -60,7 +57,7 @@ export async function POST(request: Request) {
 
     const {
       data: { publicUrl },
-    } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(data!.path as string)
+    } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(data!.path as string)
 
     return new Response(
       JSON.stringify({

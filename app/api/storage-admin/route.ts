@@ -1,12 +1,9 @@
-import { createAdminClient, createAuthClient } from "@/lib/supabase-server"
+import { adminClient, authClient } from "@/lib/supabase-server"
 
 const ASSETS_BUCKET = process.env.NEXT_PUBLIC_ASSETS_BUCKET || "espelho-assets"
 
 export async function POST(req: Request) {
   try {
-    const supabase = createAuthClient()
-    const supabaseAdmin = createAdminClient()
-
     const authHeader = req.headers.get("authorization")
     if (!authHeader?.startsWith("Bearer ")) {
       return Response.json({ ok: false, message: "Missing Authorization header" }, { status: 401 })
@@ -16,7 +13,7 @@ export async function POST(req: Request) {
     const {
       data: { user },
       error: userErr,
-    } = await supabase.auth.getUser(token)
+    } = await authClient.auth.getUser(token)
 
     if (userErr || !user) {
       return Response.json({ ok: false, message: "Invalid token" }, { status: 401 })
@@ -29,7 +26,7 @@ export async function POST(req: Request) {
       let storagePath = path
 
       if (!storagePath && assetId) {
-        const { data: asset, error: fetchErr } = await supabaseAdmin
+        const { data: asset, error: fetchErr } = await adminClient
           .from("assets")
           .select("storage_path, user_id")
           .eq("id", assetId)
@@ -57,7 +54,7 @@ export async function POST(req: Request) {
         return Response.json({ ok: false, message: "No valid path found for deletion" }, { status: 400 })
       }
 
-      const { error: storageErr } = await supabaseAdmin.storage.from(ASSETS_BUCKET).remove([storagePath])
+      const { error: storageErr } = await adminClient.storage.from(ASSETS_BUCKET).remove([storagePath])
 
       if (storageErr) {
         console.error("[Storage Admin] Storage delete failed:", storageErr)
@@ -65,8 +62,8 @@ export async function POST(req: Request) {
       }
 
       if (assetId) {
-        await supabaseAdmin.from("jobs").delete().or(`product_id.eq.${assetId},model_id.eq.${assetId}`)
-        const { error: dbErr } = await supabaseAdmin.from("assets").delete().eq("id", assetId)
+        await adminClient.from("jobs").delete().or(`product_id.eq.${assetId},model_id.eq.${assetId}`)
+        const { error: dbErr } = await adminClient.from("assets").delete().eq("id", assetId)
         if (dbErr) {
           return Response.json({ ok: false, message: "File deleted but DB record failed" }, { status: 500 })
         }

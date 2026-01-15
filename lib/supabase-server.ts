@@ -11,58 +11,42 @@ import { createClient } from "@supabase/supabase-js"
 import { supabaseUrl, supabaseServiceKey, supabaseAnonKey } from "./supabase-config"
 
 /**
- * Supabase Server Client (SERVER-SIDE ONLY)
+ * Supabase Server Clients (SERVER-SIDE ONLY)
  *
- * IMPORTANT: This file should ONLY be imported in server components or API routes.
- * For client-side operations, use lib/supabase.ts instead.
+ * IMPORTANT: This file exports CONSTANTS (not functions) to avoid Next.js
+ * treating them as Server Actions. These should ONLY be imported in server
+ * components or API routes. For client-side operations, use lib/supabase.ts.
  */
 
 // ============================================
 // ADMIN CLIENT - Use para operações privilegiadas
 // ============================================
 
-let adminClientInstance: ReturnType<typeof createClient> | null = null
-
-export function getAdminClient() {
-  if (!supabaseServiceKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured. Cannot create admin client.")
-  }
-
-  if (!adminClientInstance) {
-    adminClientInstance = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-  }
-
-  return adminClientInstance
+if (!supabaseServiceKey) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured. Cannot create admin client.")
 }
 
-export function createAdminClient() {
-  return getAdminClient()
-}
+export const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    storageKey: "espelho-meu-admin-auth",
+  },
+})
 
 // ============================================
 // AUTH CLIENT - Use para operações públicas
 // ============================================
 
-let authClientInstance: ReturnType<typeof createClient> | null = null
+export const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    storageKey: "espelho-meu-server-auth",
+  },
+})
 
-export function getAuthClient() {
-  if (!authClientInstance) {
-    authClientInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-  }
-
-  return authClientInstance
-}
-
-export function createAuthClient() {
-  return getAuthClient()
-}
+export const createAdminClient = () => adminClient
+export const createAuthClient = () => authClient
+export const getAdminClient = () => adminClient
+export const getAuthClient = () => authClient

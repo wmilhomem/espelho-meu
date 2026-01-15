@@ -1,4 +1,4 @@
-import { createAdminClient, createAuthClient } from "@/lib/supabase-server"
+import { adminClient, authClient } from "@/lib/supabase-server"
 
 interface ImportParams {
   url: string
@@ -38,11 +38,10 @@ export async function POST(req: Request) {
   }
 
   const token = authHeader.split(" ")[1]
-  const supabaseAuth = createAuthClient()
   const {
     data: { user },
     error: authError,
-  } = await supabaseAuth.auth.getUser(token)
+  } = await authClient.auth.getUser(token)
 
   if (authError || !user) {
     console.warn("[Import API] Token inválido ou expirado")
@@ -150,9 +149,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const supabaseAdmin = createAdminClient()
-
-    const { error: uploadError } = await supabaseAdmin.storage.from(bucket).upload(dest_path, imageBuffer, {
+    const { error: uploadError } = await adminClient.storage.from(bucket).upload(dest_path, imageBuffer, {
       contentType: contentType,
       cacheControl: "3600",
       upsert: false,
@@ -170,10 +167,10 @@ export async function POST(req: Request) {
     let signedUrl = ""
 
     if (make_public) {
-      const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(dest_path)
+      const { data } = adminClient.storage.from(bucket).getPublicUrl(dest_path)
       finalUrl = data.publicUrl
     } else {
-      const { data } = await supabaseAdmin.storage.from(bucket).createSignedUrl(dest_path, 60 * 60)
+      const { data } = await adminClient.storage.from(bucket).createSignedUrl(dest_path, 60 * 60)
       if (data) signedUrl = data.signedUrl
     }
 
