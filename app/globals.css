@@ -290,6 +290,26 @@ body::after {
   background: rgba(255, 215, 0, 0.5);
 }
 
+/* Golden Scrollbar - Delicate style matching landing page */
+.gold-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.gold-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gold-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 215, 0, 0.4);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+.gold-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 215, 0, 0.6);
+}
+
 /* Dark theme (Slate + Cyan) with complete color system override */
 [data-theme="dark"] {
   /* Override semantic tokens */

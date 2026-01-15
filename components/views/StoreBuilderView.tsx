@@ -559,7 +559,7 @@ export const StoreBuilderView: React.FC<StoreBuilderViewProps> = ({ currentUser,
         {activeTab === "products" && (
           <div className="flex-1 flex flex-col">
             <div className="flex justify-between items-center mb-6">
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2 overflow-x-auto gold-scrollbar">
                 {categories.map((cat) => (
                   <button
                     key={cat}

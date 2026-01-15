@@ -289,7 +289,7 @@ export const PublicStoreView: React.FC<PublicStoreViewProps> = ({
               </div>
 
               {/* Cart Items List */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-theme-bg-secondary/50">
+              <div className="flex-1 overflow-y-auto gold-scrollbar p-6 bg-theme-bg-secondary/50">
                 {cart.length > 0 ? (
                   <div className="space-y-4 mb-8">
                     {cart.map((item, idx) => (
