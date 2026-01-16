@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Footer from "@/components/Footer"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 export default function Home() {
   const router = useRouter()
@@ -15,6 +16,26 @@ export default function Home() {
   const directionRef = useRef<number>(1)
   const [demoGender, setDemoGender] = useState<"female" | "male">("female")
   const [currentDemoIndex, setCurrentDemoIndex] = useState(0)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = getSupabaseBrowserClient()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        setIsLoggedIn(!!session)
+        console.log("[v0] Landing page - User session:", !!session)
+      } catch (error) {
+        console.error("[v0] Error checking auth:", error)
+      } finally {
+        setCheckingAuth(false)
+      }
+    }
+    checkAuth()
+  }, [])
 
   const demoExamples = [
     {
@@ -171,6 +192,16 @@ export default function Home() {
     },
   ]
 
+  const handleLoginClick = () => {
+    if (isLoggedIn) {
+      console.log("[v0] User already logged in, redirecting to atelier")
+      router.push("/atelier")
+    } else {
+      console.log("[v0] User not logged in, redirecting to login")
+      router.push("/login")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#05010a] text-white font-sans overflow-x-hidden selection:bg-luxury-gold selection:text-black">
       {/* Atmosphere Background */}
@@ -187,10 +218,11 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 flex justify-end items-center">
           <button
-            onClick={() => router.push("/login")}
-            className="px-8 py-2.5 bg-luxury-gold text-black rounded-full text-xs font-bold uppercase tracking-widest hover:bg-luxury-gold/90 hover:shadow-[0_0_25px_rgba(255,215,0,0.6)] transition-all duration-300 shadow-[0_0_15px_rgba(255,215,0,0.3)]"
+            onClick={handleLoginClick}
+            disabled={checkingAuth}
+            className="px-8 py-2.5 bg-luxury-gold text-black rounded-full text-xs font-bold uppercase tracking-widest hover:bg-luxury-gold/90 hover:shadow-[0_0_25px_rgba(255,215,0,0.6)] transition-all duration-300 shadow-[0_0_15px_rgba(255,215,0,0.3)] disabled:opacity-50"
           >
-            Login / Entrar
+            {checkingAuth ? "..." : isLoggedIn ? "Meu Atelier" : "Login / Entrar"}
           </button>
         </div>
       </nav>
@@ -215,11 +247,12 @@ export default function Home() {
             da Inteligência Artificial.{" "}
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center mt-12 w-full max-w-2xl mx-auto px-4">
-            <Link href="/login" className="flex-1">
-              <button className="w-full gold-gradient-bg py-5 rounded-full text-black font-extrabold uppercase tracking-[0.25em] text-xs shadow-[0_0_40px_rgba(255,215,0,0.3)] hover:shadow-[0_0_60px_rgba(255,215,0,0.5)] hover:scale-105 transition-all duration-500">
-                CRIAR MEU LOOK
-              </button>
-            </Link>
+            <button
+              onClick={handleLoginClick}
+              className="flex-1 w-full gold-gradient-bg py-5 rounded-full text-black font-extrabold uppercase tracking-[0.25em] text-xs shadow-[0_0_40px_rgba(255,215,0,0.3)] hover:shadow-[0_0_60px_rgba(255,215,0,0.5)] hover:scale-105 transition-all duration-500"
+            >
+              {isLoggedIn ? "MEU ATELIER" : "CRIAR MEU LOOK"}
+            </button>
             <Link href="/lojas" className="flex-1">
               <button className="w-full gold-gradient-bg py-5 rounded-full text-black font-extrabold uppercase tracking-[0.25em] text-xs shadow-[0_0_40px_rgba(255,215,0,0.3)] hover:shadow-[0_0_60px_rgba(255,215,0,0.5)] hover:scale-105 transition-all duration-500">
                 EXPLORAR VITRINES
@@ -555,13 +588,13 @@ export default function Home() {
           </h2>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center w-full max-w-3xl mx-auto px-4">
-            <Link
-              href="/login"
+            <button
+              onClick={handleLoginClick}
               className="group relative inline-flex items-center justify-center px-16 py-6 text-sm font-bold text-black uppercase tracking-[0.25em] bg-gradient-to-r from-[#BF953F] via-[#FCF6BA] to-[#AA771C] rounded-full overflow-hidden transition-transform active:scale-95 hover:scale-105 shadow-[0_0_50px_rgba(191,149,63,0.3)] flex-1 animate-[pulse_3s_infinite]"
             >
               <span className="relative z-10">Iniciar Experiência</span>
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-            </Link>
+            </button>
           </div>
 
           <p className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-bold">

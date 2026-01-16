@@ -56,10 +56,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" && session) {
-    console.log("[v0][Middleware] User logged in, redirecting from login")
+    console.log("[v0][Middleware] User already logged in, redirecting to atelier")
     const redirectUrl = request.nextUrl.clone()
-    const redirectTo = request.nextUrl.searchParams.get("redirectTo")
-    redirectUrl.pathname = redirectTo || "/atelier"
+    redirectUrl.pathname = "/atelier"
     redirectUrl.searchParams.delete("redirectTo")
     return NextResponse.redirect(redirectUrl)
   }

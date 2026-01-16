@@ -26,17 +26,18 @@ if (!isConfigured) {
 
 console.log("[v0] Supabase Browser Client initialized")
 
-// SINGLETON: Cria UMA ÚNICA VEZ - sem chamadas no escopo do módulo
+// ✅ SINGLETON: Cria UMA ÚNICA VEZ - sem chamadas no escopo do módulo
 let browserClientInstance: ReturnType<typeof createBrowserClient> | null = null
 
 export function getSupabaseBrowserClient() {
-  // Lazy initialization: só cria quando realmente necessário
+  // ✅ Lazy initialization: só cria quando realmente necessário
   if (!browserClientInstance) {
     console.log("[v0] Creating new Supabase browser client instance")
     browserClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         storageKey: "espelho-meu-auth",
-        storage: window.localStorage,
+        // ✅ CORRIGIDO: window.localStorage apenas se window existir
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
@@ -44,6 +45,11 @@ export function getSupabaseBrowserClient() {
     })
   }
   return browserClientInstance
+}
+
+// ✅ Alias para compatibilidade
+export function getSupabase() {
+  return getSupabaseBrowserClient()
 }
 
 // This is a getter that always returns the singleton instance
@@ -58,7 +64,6 @@ export { supabaseUrl, supabaseAnonKey }
 
 export function getAuthToken(): string | undefined {
   if (typeof window === "undefined") return undefined
-
   try {
     const client = getSupabaseBrowserClient()
     // Access token from current session
