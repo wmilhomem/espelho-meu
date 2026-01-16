@@ -1,5 +1,3 @@
-"use server"
-
 // ============================================
 // lib/supabase-server.ts
 // ============================================
@@ -45,8 +43,3 @@ export const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     storageKey: "espelho-meu-server-auth",
   },
 })
-
-export const createAdminClient = () => adminClient
-export const createAuthClient = () => authClient
-export const getAdminClient = () => adminClient
-export const getAuthClient = () => authClient
