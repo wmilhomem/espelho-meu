@@ -372,13 +372,16 @@ export default function AtelierPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId: createdJob.id }),
       })
-        .then(() => console.log("[v0] ✅ process-job fetch completed"))
-        .catch((err) => {
-          console.error("[Atelier] ❌ Erro ao iniciar processamento:", err)
-          console.error("[v0] ❌ process-job fetch error:", err)
-        })
 
+      console.log("[v0] ✅ process-job fetch completed")
       console.log("[v0] Resposta Fetch api :", res.status)
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        console.error("[Atelier] ❌ Erro ao iniciar processamento:", errorData)
+        throw new Error(errorData.error || `Erro HTTP: ${res.status}`)
+      }
+
       console.log("[v0] Setting polling job ID:", createdJob.id)
       setPollingJobId(createdJob.id)
       setJobStatus("Job em fila, aguardando processamento...")
