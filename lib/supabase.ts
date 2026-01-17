@@ -20,41 +20,87 @@ const supabaseAnonKey =
 
 export const isConfigured = !!supabaseUrl && !!supabaseAnonKey
 
-if (!isConfigured) {
-  throw new Error("Supabase configuration is invalid. Check your environment variables.")
+if (!isConfigured && typeof window !== "undefined") {
+  console.error("[v0] Supabase configuration is invalid. Check your environment variables.")
 }
 
-console.log("[v0] Supabase Browser Client initialized")
+const isServer = typeof window === "undefined"
 
-// ✅ SINGLETON: Cria UMA ÚNICA VEZ - sem chamadas no escopo do módulo
+// Log apenas no cliente para evitar poluir logs do servidor
+if (!isServer) {
+  console.log("[v0] Supabase Browser Client module loaded")
+}
+
+// Singleton: Cria UMA ÚNICA VEZ - sem chamadas no escopo do módulo
 let browserClientInstance: ReturnType<typeof createBrowserClient> | null = null
 
-export function getSupabaseBrowserClient() {
-  // ✅ Lazy initialization: só cria quando realmente necessário
-  if (!browserClientInstance) {
-    console.log("[v0] Creating new Supabase browser client instance")
-    browserClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        storageKey: "espelho-meu-auth",
-        // ✅ CORRIGIDO: window.localStorage apenas se window existir
-        storage: typeof window !== "undefined" ? window.localStorage : undefined,
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+export function getSupabaseBrowserClient(): ReturnType<typeof createBrowserClient> {
+  // Verificação crítica: impede uso no servidor
+  if (isServer) {
+    console.error("[v0] ERROR: getSupabaseBrowserClient() called on SERVER!")
+    console.error("[v0] Use lib/supabase-server.ts for server-side operations")
+
+    // Retorna um proxy que lança erro em qualquer operação
+    // Isso dá uma mensagem de erro clara ao invés de "undefined"
+    return new Proxy({} as ReturnType<typeof createBrowserClient>, {
+      get: (target, prop) => {
+        // Permite toString para debug
+        if (prop === "toString" || prop === Symbol.toStringTag) {
+          return () => "[ServerSideSupabaseClientError]"
+        }
+        // Qualquer outra propriedade lança erro
+        throw new Error(
+          `[Supabase] Cannot use browser client on server. ` +
+            `Attempted to access "${String(prop)}". ` +
+            `Use adminClient or authClient from lib/supabase-server.ts instead.`,
+        )
       },
-    })
+    }) as ReturnType<typeof createBrowserClient>
   }
+
+  // Lazy initialization: só cria quando realmente necessário
+  if (!browserClientInstance) {
+    console.log("[v0] [BROWSER] Creating new Supabase browser client instance")
+
+    try {
+      browserClientInstance = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          storageKey: "espelho-meu-auth",
+          storage: window.localStorage, // Seguro pois já verificamos que estamos no browser
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+      console.log("[v0] [BROWSER] Supabase client created successfully")
+    } catch (error) {
+      console.error("[v0] [BROWSER] Failed to create Supabase client:", error)
+      throw error
+    }
+  }
+
   return browserClientInstance
 }
 
-// ✅ Alias para compatibilidade
+// Alias para compatibilidade
 export function getSupabase() {
   return getSupabaseBrowserClient()
 }
 
-// This is a getter that always returns the singleton instance
 export const supabase = new Proxy({} as ReturnType<typeof createBrowserClient>, {
   get: (target, prop) => {
+    // No servidor, retorna função que lança erro
+    if (isServer) {
+      if (prop === "toString" || prop === Symbol.toStringTag) {
+        return () => "[ServerSideSupabaseProxy]"
+      }
+      return () => {
+        throw new Error(
+          `[Supabase] Cannot use browser client on server. ` +
+            `Use adminClient or authClient from lib/supabase-server.ts instead.`,
+        )
+      }
+    }
     const client = getSupabaseBrowserClient()
     return (client as any)[prop]
   },
@@ -63,11 +109,11 @@ export const supabase = new Proxy({} as ReturnType<typeof createBrowserClient>, 
 export { supabaseUrl, supabaseAnonKey }
 
 export function getAuthToken(): string | undefined {
-  if (typeof window === "undefined") return undefined
+  if (isServer) return undefined
   try {
     const client = getSupabaseBrowserClient()
-    // Access token from current session
-    return client.auth.session()?.access_token
+    // @ts-ignore - session() pode não existir em todas as versões
+    return client.auth.session?.()?.access_token
   } catch {
     return undefined
   }
